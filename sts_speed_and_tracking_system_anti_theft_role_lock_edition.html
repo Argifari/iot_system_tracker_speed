@@ -1,0 +1,3348 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f59e0b">
+  <title>STS - Speed and Tracking System</title>
+  <!-- Web App Manifest Inline untuk fitur Install App / Background PWA -->
+  <link rel="manifest" href='data:application/manifest+json,{"name":"STS - Speed and Tracking System","short_name":"STS Radar","start_url":".","display":"standalone","background_color":"#111827","theme_color":"#f59e0b"}'>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    /* ================= GAYA UTAMA TEMA SEWAIN AJA ================= */
+    :root {
+      --kuning: #ffc82c;
+      --amber: #f59e0b;
+      --oranye: #ea6a00;
+      --merah: #dc2626;
+      --biru: #0284c7;
+      --hijau: #10b981;
+      --ungu: #7c3aed;
+      --gelap: #111827;
+      --kartu-gelap: #1f2937;
+      --teks: #1f2937;
+      --teks-pudar: #6b7280;
+      --garis: #e5e7eb;
+      --latar: #f9fafb;
+      --radius: 12px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+      color: var(--teks);
+      background: var(--latar);
+      line-height: 1.5;
+      font-size: 14px;
+    }
+    button { font: inherit; cursor: pointer; border: 0; background: none; color: inherit; }
+    input { font: inherit; }
+    ul { list-style: none; }
+    .container { max-width: 1240px; margin: 0 auto; padding: 0 20px; }
+    .hidden { display: none !important; }
+    .mono { font-family: ui-monospace, Menlo, monospace; }
+
+    /* ---------- Navbar (Gaya Sewain Aja) ---------- */
+    .navbar {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--garis);
+    }
+    .navbar-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+      gap: 12px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+    }
+    .brand-logo {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, var(--amber), var(--merah));
+      color: #ffffff;
+      font-weight: 800;
+      font-size: 18px;
+      box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);
+    }
+    .brand-name {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--gelap);
+    }
+    .brand-name span { color: var(--oranye); }
+    .brand-sub {
+      display: block;
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #9ca3af;
+      font-weight: 700;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      padding: 5px;
+      background: #f3f4f6;
+      border: 1px solid var(--garis);
+      border-radius: 999px;
+    }
+    .tab {
+      padding: 6px 16px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #4b5563;
+      transition: all 0.15s;
+    }
+    .tab:hover { color: #111; }
+    .tab.aktif-monitor { background: var(--merah); color: #fff; }
+    .tab.aktif-edge { background: var(--oranye); color: #fff; }
+    .tab.aktif-docs { background: var(--biru); color: #fff; }
+
+    .nav-aksi { display: flex; align-items: center; gap: 8px; }
+    .chip-mqtt {
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 800;
+      background: #f3f4f6;
+      color: #4b5563;
+      border: 1px solid var(--garis);
+    }
+    .chip-mqtt.ok { background: #ecfdf5; color: #059669; border-color: #a7f3d0; }
+    .chip-mqtt.wait { background: #fffbeb; color: #d97706; border-color: #fde68a; }
+    .chip-mqtt.err { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 14px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 700;
+      transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
+    }
+    .btn:hover:not(:disabled) { transform: translateY(-1px); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-utama {
+      background: linear-gradient(90deg, #f97316, var(--amber));
+      color: #fff;
+      box-shadow: 0 6px 16px rgba(249, 115, 22, 0.25);
+    }
+    .btn-merah { background: var(--merah); color: #fff; }
+    .btn-hijau { background: #22c55e; color: #fff; }
+    .btn-hitam { background: var(--gelap); color: #fff; }
+    .btn-putih { background: #fff; border: 1px solid #fcd34d; color: var(--teks); }
+    .btn-abu { background: #374151; color: #f3f4f6; border: 1px solid #4b5563; }
+    .btn-biru { background: var(--biru); color: #fff; }
+    .btn-ungu {
+      background: linear-gradient(135deg, #7c3aed, #2563eb);
+      color: #fff;
+      box-shadow: 0 6px 16px rgba(124, 58, 237, 0.3);
+    }
+
+    .nav-mobile {
+      display: none;
+      justify-content: space-around;
+      padding: 8px 0;
+      background: #f3f4f6;
+      border-top: 1px solid var(--garis);
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .nav-mobile button { text-align: center; padding: 2px 8px; }
+    .nav-mobile i { display: block; margin-bottom: 2px; }
+
+    /* ---------- Hero Banner Kuning-Amber + Preview Peta Kota Malam ---------- */
+    .hero {
+      padding: 32px 0 40px;
+      background: linear-gradient(to bottom, #fcd34d, #fde68a 55%, #fffbeb);
+      border-bottom: 1px solid #fde68a;
+    }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 7fr 5fr;
+      gap: 28px;
+      align-items: center;
+    }
+    .badge-hero {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.88);
+      border: 1px solid #fcd34d;
+      font-size: 11.5px;
+      font-weight: 700;
+      color: #78350f;
+    }
+    .badge-hero .titik {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--oranye);
+      box-shadow: 0 0 8px var(--oranye);
+    }
+    .hero h1 {
+      font-size: 38px;
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+      margin: 12px 0;
+      color: var(--gelap);
+    }
+    .hero h1 em { font-style: normal; color: var(--oranye); }
+    .hero p.lead {
+      font-size: 14.5px;
+      color: #374151;
+      max-width: 620px;
+      font-weight: 500;
+    }
+
+    /* Bar Konfigurasi Global di dalam Hero */
+    .config-bar {
+      margin-top: 18px;
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid #fcd34d;
+      padding: 14px;
+      border-radius: 14px;
+      display: grid;
+      grid-template-columns: 1.8fr 1.4fr 0.9fr 1fr 1fr 0.8fr;
+      gap: 10px;
+      box-shadow: 0 10px 25px rgba(120, 53, 15, 0.06);
+    }
+    .config-field label {
+      display: block;
+      font-size: 10.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+      color: #78350f;
+      margin-bottom: 3px;
+    }
+    .config-field input {
+      width: 100%;
+      padding: 7px 10px;
+      border-radius: 8px;
+      border: 1px solid #d1d5db;
+      background: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--gelap);
+      outline: none;
+    }
+    .config-field input:focus { border-color: var(--oranye); }
+
+    /* Preview Card Miring dengan Hiasan Peta Kota Malam */
+    .preview {
+      background: #fff;
+      padding: 14px;
+      border-radius: 16px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.14);
+      transform: rotate(1deg);
+      transition: transform 0.25s;
+      border: 1px solid #fde68a;
+    }
+    .preview:hover { transform: rotate(0); }
+    .preview-head {
+      background: linear-gradient(90deg, #111827, #1f2937, #450a0a);
+      color: #fff;
+      padding: 12px 14px;
+      border-radius: 10px;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .preview-head h3 { font-size: 15px; font-weight: 800; }
+    .preview-head small { font-size: 10.5px; color: #fca5a5; display: block; }
+    .night-map-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .night-map-item {
+      position: relative;
+      height: 135px;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #030712;
+      border: 1px solid #1f2937;
+    }
+    .night-map-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      opacity: 0.9;
+      filter: contrast(1.12);
+    }
+    .night-map-fallback {
+      position: absolute;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle, rgba(249,115,22,0.35) 1.5px, #050811 1.5px);
+      background-size: 16px 16px;
+      color: #fbbf24;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .night-map-tag {
+      position: absolute;
+      bottom: 6px;
+      left: 6px;
+      right: 6px;
+      background: rgba(17, 24, 39, 0.88);
+      color: #fbbf24;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    /* ---------- Area Dashboard Gelap (Gaya #view-kendaraan Sewain Aja) ---------- */
+    .dash-dark {
+      background: var(--gelap);
+      color: #f3f4f6;
+      min-height: 80vh;
+      padding-bottom: 64px;
+    }
+    .dash-head-dark {
+      padding: 26px 0;
+      background: linear-gradient(90deg, #111827, #1f2937, #450a0a);
+      border-bottom: 1px solid rgba(127, 29, 29, 0.5);
+    }
+    .dash-head-inner {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .kicker-red {
+      font-size: 11.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #ef4444;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .dash-head-dark h2 {
+      font-size: 26px;
+      font-weight: 800;
+      margin-top: 2px;
+      color: #fff;
+    }
+    .dash-head-dark p { font-size: 12.5px; color: #d1d5db; }
+
+    /* Stat Grid 4 Kolom */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin: 24px 0 18px;
+    }
+    .stat-card {
+      background: var(--kartu-gelap);
+      border: 1px solid #374151;
+      padding: 15px 18px;
+      border-radius: 12px;
+    }
+    .stat-card .judul { font-size: 12px; color: #9ca3af; font-weight: 600; }
+    .stat-card .nilai { font-size: 24px; font-weight: 800; margin-top: 4px; color: #fff; }
+    .stat-card small { font-size: 10.5px; font-weight: 700; }
+
+    /* Bar Daftar Blokir */
+    .blacklist-bar {
+      background: rgba(127, 29, 29, 0.25);
+      border: 1px solid #7f1d1d;
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin-bottom: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-size: 12px;
+    }
+    .blacklist-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .blacklist-chip {
+      background: #450a0a;
+      border: 1px solid #ef4444;
+      color: #fca5a5;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Grid Kartu Perangkat HP */
+    .devices-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 18px 0 12px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .devices-header h3 {
+      font-size: 16px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #fff;
+    }
+    .devices-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(365px, 1fr));
+      gap: 18px;
+      margin-bottom: 28px;
+    }
+
+    /* Kartu Satuan HP */
+    .hp-card {
+      background: #141b2d;
+      border: 1px solid #283548;
+      border-radius: 14px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .hp-card.aman { border-left: 5px solid var(--hijau); }
+    .hp-card.bergerak {
+      border-left: 5px solid #ef4444;
+      background: linear-gradient(160deg, #1f1218 0%, #131926 100%);
+      box-shadow: 0 0 25px rgba(239, 68, 68, 0.2);
+    }
+    .hp-card.menunggu { border-left: 5px solid var(--amber); }
+    .hp-card.history-card {
+      border-left: 5px solid #64748b;
+      background: #111827;
+      opacity: 0.92;
+    }
+
+    .hp-card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .hp-identity {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 16px;
+      font-weight: 800;
+      color: #fff;
+    }
+    .hp-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .hp-devid {
+      font-size: 12px;
+      color: #9ca3af;
+      font-weight: 500;
+    }
+
+    .status-pill {
+      padding: 4px 11px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 800;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .status-pill.merah {
+      background: #dc2626;
+      color: #fff;
+      box-shadow: 0 0 12px rgba(220, 38, 38, 0.6);
+    }
+    .status-pill.hijau {
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+    }
+    .status-pill.kuning {
+      background: rgba(245, 158, 11, 0.2);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.4);
+    }
+    .status-pill.abu {
+      background: rgba(100, 116, 139, 0.25);
+      color: #cbd5e1;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+    }
+
+    /* Kotak Alert Pelanggaran Safezone */
+    .breach-box {
+      background: rgba(24, 15, 22, 0.85);
+      border: 1px solid #991b1b;
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 12px;
+      font-size: 12.5px;
+    }
+    .breach-title {
+      color: #f87171;
+      font-weight: 800;
+      margin-bottom: 8px;
+      line-height: 1.35;
+    }
+    .breach-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+      color: #e5e7eb;
+    }
+    .breach-coord-bar {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #374151;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .safe-box {
+      background: rgba(6, 78, 59, 0.25);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      border-radius: 10px;
+      padding: 11px 12px;
+      margin-bottom: 12px;
+      font-size: 12px;
+      color: #a7f3d0;
+    }
+    .wait-box {
+      background: rgba(120, 53, 15, 0.25);
+      border: 1px solid rgba(245, 158, 11, 0.45);
+      border-radius: 10px;
+      padding: 11px 12px;
+      margin-bottom: 12px;
+      font-size: 12px;
+      color: #fde68a;
+    }
+
+    /* ================= SPEEDOMETER + METRIK PENDUKUNG ================= */
+    .telemetry-showcase {
+      display: grid;
+      grid-template-columns: 155px 1fr;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 12px;
+      background: #0d1322;
+      border: 1px solid #263147;
+      border-radius: 12px;
+      padding: 10px;
+    }
+    .speedo-wrap {
+      position: relative;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .speedo-svg {
+      width: 145px;
+      height: 88px;
+      overflow: visible;
+    }
+    .speedo-value-num {
+      font-size: 19px;
+      font-weight: 800;
+      line-height: 1;
+      margin-top: -6px;
+    }
+    .speedo-unit-lbl {
+      font-size: 10px;
+      color: #9ca3af;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+    .speedo-limit-tag {
+      display: inline-block;
+      margin-top: 4px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-size: 9.5px;
+      font-weight: 800;
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.35);
+    }
+
+    .mini-metrics-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 7px;
+    }
+    .mini-metric {
+      background: #161f33;
+      border: 1px solid #28354d;
+      border-radius: 8px;
+      padding: 7px 8px;
+      text-align: center;
+    }
+    .mini-metric .lbl {
+      font-size: 10px;
+      color: #9ca3af;
+      display: block;
+    }
+    .mini-metric .val {
+      font-size: 12.5px;
+      font-weight: 800;
+      margin-top: 2px;
+      display: block;
+    }
+
+    .hp-card-actions {
+      padding-top: 10px;
+      border-top: 1px solid #263147;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+    .btn-set-sz {
+      background: var(--amber);
+      color: #111827;
+      font-weight: 800;
+      padding: 6px 11px;
+      border-radius: 8px;
+      font-size: 11.5px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .btn-set-sz:hover { background: #fbbf24; }
+    .btn-perm-sz {
+      background: transparent;
+      border: 1px solid #4b5563;
+      color: #9ca3af;
+      padding: 5px 10px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .btn-perm-sz.aktif {
+      background: rgba(16, 185, 129, 0.2);
+      border-color: #10b981;
+      color: #34d399;
+    }
+    .btn-rename {
+      border: 1px solid #0284c7;
+      color: #38bdf8;
+      padding: 5px 9px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .btn-kick {
+      border: 1px solid #f59e0b;
+      color: #fbbf24;
+      padding: 5px 9px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 700;
+      margin-left: auto;
+    }
+    .btn-kick:hover { background: rgba(245, 158, 11, 0.2); }
+    .btn-block {
+      border: 1px solid #ef4444;
+      color: #f87171;
+      padding: 5px 9px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .btn-block:hover { background: rgba(239, 68, 68, 0.2); }
+
+    .btn-outline-xs {
+      border: 1px solid #38bdf8;
+      color: #38bdf8;
+      padding: 2px 9px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .btn-outline-xs.light {
+      border-color: #d1d5db;
+      color: #f3f4f6;
+    }
+
+    /* 3 Grafik Chart.js */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    .chart-card {
+      background: var(--kartu-gelap);
+      border: 1px solid #374151;
+      border-radius: 12px;
+      padding: 14px;
+    }
+    .chart-card h4 {
+      font-size: 13px;
+      font-weight: 800;
+      margin-bottom: 10px;
+      color: #f3f4f6;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .chart-box { position: relative; height: 215px; width: 100%; }
+
+    /* Tabel Log Pelanggaran */
+    .tabel-box {
+      background: var(--kartu-gelap);
+      border: 1px solid #374151;
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 28px;
+    }
+    .tabel-head {
+      padding: 14px 16px;
+      border-bottom: 1px solid #374151;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .tabel-head h3 { font-size: 13.5px; font-weight: 800; color: #fff; }
+    .scroll-x { overflow-x: auto; max-height: 290px; }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 12px; }
+    th {
+      padding: 11px 12px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 800;
+      background: var(--gelap);
+      color: #9ca3af;
+      white-space: nowrap;
+    }
+    td {
+      padding: 11px 12px;
+      border-top: 1px solid #374151;
+      color: #e5e7eb;
+      vertical-align: middle;
+    }
+
+    /* ---------- Tab 2: Mode HP Edge (Tema Oranye Sewain Aja) ---------- */
+    .dash-orange {
+      background: #fff9f5;
+      min-height: 75vh;
+      padding-bottom: 64px;
+    }
+    .dash-head-orange {
+      background: linear-gradient(90deg, #ea580c, #d97706, #f97316);
+      color: #fff;
+      padding: 28px 0;
+      margin-bottom: 24px;
+    }
+    .edge-box {
+      background: #fff;
+      border: 2px solid #fed7aa;
+      border-radius: 16px;
+      padding: 22px;
+      box-shadow: 0 12px 28px rgba(234, 88, 12, 0.08);
+    }
+
+    /* ---------- Tab 3: Analisis Visual & BMC Style ---------- */
+    .dash-blue {
+      background: #f0f9ff;
+      min-height: 75vh;
+      padding-bottom: 64px;
+    }
+    .dash-head-blue {
+      background: linear-gradient(90deg, #0284c7, #0ea5e9, #0891b2);
+      color: #fff;
+      padding: 28px 0;
+      margin-bottom: 24px;
+    }
+    .bmc-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+    .bmc-kotak {
+      background: #fff;
+      padding: 18px;
+      border-radius: 12px;
+      border-top: 4px solid var(--biru);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.05);
+    }
+    .bmc-kotak h4 { font-size: 13px; text-transform: uppercase; margin-bottom: 8px; }
+    .bmc-kotak p { font-size: 12px; color: #4b5563; }
+
+    /* ---------- Toast Notification ---------- */
+    #toast-container {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      z-index: 80;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .toast {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      border-radius: 12px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      background: #111827;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+      transition: opacity 0.3s, transform 0.3s;
+    }
+    .toast.sukses { background: #059669; }
+    .toast.error { background: var(--merah); }
+    .toast.info { background: var(--biru); }
+    .toast.keluar { opacity: 0; transform: translateY(-8px); }
+
+    /* ---------- Onboarding Gate & Modal Sandi Master ---------- */
+    .gate-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 65;
+      background: linear-gradient(135deg, #0b0f19 0%, #111827 55%, #3b0a0a 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      overflow-y: auto;
+    }
+    .gate-container {
+      width: 100%;
+      max-width: 900px;
+      background: #141b2d;
+      border: 1px solid #374151;
+      border-radius: 20px;
+      padding: 28px;
+      color: #f9fafb;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.65);
+    }
+    .gate-role-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      margin-top: 20px;
+    }
+    .gate-role-card {
+      background: #1f2937;
+      border: 2px solid #374151;
+      border-radius: 16px;
+      padding: 22px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .gate-role-card:hover {
+      border-color: var(--amber);
+      transform: translateY(-2px);
+    }
+    .gate-form-box {
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid #374151;
+    }
+    .gate-field {
+      margin-bottom: 12px;
+    }
+    .gate-field label {
+      display: block;
+      font-size: 11.5px;
+      font-weight: 800;
+      color: #fbbf24;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+    }
+    .gate-field input {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid #4b5563;
+      background: #0b0f19;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      outline: none;
+    }
+    .gate-field input:focus { border-color: var(--amber); }
+
+    .pwd-modal-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 75;
+      background: rgba(0, 0, 0, 0.78);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .pwd-modal-box {
+      width: 100%;
+      max-width: 420px;
+      background: #141b2d;
+      border: 1px solid #f59e0b;
+      border-radius: 16px;
+      padding: 22px;
+      color: #fff;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+    }
+    .locked-input {
+      background: #f3f4f6 !important;
+      color: #4b5563 !important;
+      cursor: not-allowed;
+    }
+
+    @media (max-width: 980px) {
+      .tabs { display: none; }
+      .nav-mobile { display: flex; }
+      .hero-grid, .charts-grid, .bmc-grid, .gate-role-grid { grid-template-columns: 1fr; }
+      .config-bar { grid-template-columns: 1fr 1fr; }
+      .stat-grid { grid-template-columns: 1fr 1fr; }
+      .telemetry-showcase { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ================= GERBANG AWAL PEMILIHAN PERAN & SETUP KEAMANAN ================= -->
+  <div id="roleGateOverlay" class="gate-overlay">
+    <div class="gate-container">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div class="brand-logo" style="width:46px; height:46px; font-size:20px;">STS</div>
+          <div>
+            <h2 style="font-size:22px; font-weight:800; color:#fff;">STS · Anti-Theft Security Gate</h2>
+            <p style="font-size:12.5px; color:#9ca3af;">Pilih peran perangkat Anda. Setelah dikunci, peran tidak dapat diubah tanpa Sandi Master Monitor.</p>
+          </div>
+        </div>
+        <span class="status-pill kuning"><i class="fa-solid fa-shield-halved"></i> Strict Role Lock</span>
+      </div>
+
+      <!-- Pilihan 2 Peran -->
+      <div id="gateRoleSelection" class="gate-role-grid">
+        <div class="gate-role-card" onclick="pilihSetupPeran('monitor')">
+          <div>
+            <span class="status-pill merah" style="margin-bottom:10px;"><i class="fa-solid fa-desktop"></i> Master Controller</span>
+            <h3 style="font-size:19px; font-weight:800; margin-bottom:6px;">1. Masuk Sebagai Monitor (Pengawas)</h3>
+            <p style="font-size:12.5px; color:#9ca3af; line-height:1.5;">
+              Buat ruangan pemantauan baru, atur alamat MQTT Broker, Project ID, serta buat <strong>Sandi Master Monitor</strong> untuk memproteksi seluruh pengaturan penting dan mengontrol perangkat HP.
+            </p>
+          </div>
+          <button class="btn btn-merah" style="margin-top:16px; width:100%; justify-content:center;">
+            Setup Monitor Sekarang <i class="fa-solid fa-arrow-right"></i>
+          </button>
+        </div>
+
+        <div class="gate-role-card" onclick="pilihSetupPeran('edge')">
+          <div>
+            <span class="status-pill kuning" style="margin-bottom:10px;"><i class="fa-solid fa-mobile-screen-button"></i> Protected Node</span>
+            <h3 style="font-size:19px; font-weight:800; margin-bottom:6px;">2. Masuk Sebagai Edge Device (HP)</h3>
+            <p style="font-size:12.5px; color:#9ca3af; line-height:1.5;">
+              Hubungkan HP ini ke Monitor yang sudah aktif. <strong>Wajib mengisi Broker, Project ID, dan Nama HP</strong>. Sistem otomatis memverifikasi keberadaan Monitor aktif sebelum mengizinkan masuk.
+            </p>
+          </div>
+          <button class="btn btn-utama" style="margin-top:16px; width:100%; justify-content:center;">
+            Hubungkan HP ke Monitor <i class="fa-solid fa-link"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Form Setup Monitor Pertama Kali -->
+      <form id="formSetupMonitor" class="gate-form-box hidden" onsubmit="submitSetupMonitor(event)">
+        <h3 style="font-size:17px; font-weight:800; color:#fbbf24; margin-bottom:12px;">
+          <i class="fa-solid fa-user-shield"></i> Inisialisasi Akun Monitor &amp; Sandi Master
+        </h3>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px;">
+          <div class="gate-field">
+            <label>Alamat MQTT Broker (WSS) *</label>
+            <input type="text" id="setupMonBroker" required value="wss://broker.emqx.io:8084/mqtt">
+          </div>
+          <div class="gate-field">
+            <label>Project ID / Nama Room *</label>
+            <input type="text" id="setupMonProject" required value="STS_Firdaus_999">
+          </div>
+          <div class="gate-field">
+            <label>Buat Sandi Master Monitor *</label>
+            <input type="password" id="setupMonPassword" required placeholder="Minimal 4 karakter">
+          </div>
+          <div class="gate-field">
+            <label>Batas Kecepatan Awal (km/j)</label>
+            <input type="number" id="setupMonThreshold" value="2.5" step="0.5" min="0" required>
+          </div>
+          <div class="gate-field">
+            <label>Radius Safezone Awal (Maks 10m)</label>
+            <input type="number" id="setupMonRadius" value="10" min="1" max="10" required>
+          </div>
+        </div>
+        <div style="display:flex; justify-content:space-between; gap:10px; margin-top:14px;">
+          <button type="button" class="btn btn-abu" onclick="kembaliKePilihanPeran()">
+            <i class="fa-solid fa-arrow-left"></i> Kembali
+          </button>
+          <button type="submit" class="btn btn-merah">
+            <i class="fa-solid fa-lock"></i> Kunci Sebagai Monitor &amp; Aktifkan Server
+          </button>
+        </div>
+      </form>
+
+      <!-- Form Setup Edge Device (HP) Pertama Kali -->
+      <form id="formSetupEdge" class="gate-form-box hidden" onsubmit="submitSetupEdge(event)">
+        <h3 style="font-size:17px; font-weight:800; color:#38bdf8; margin-bottom:6px;">
+          <i class="fa-solid fa-satellite-dish"></i> Pendaftaran Edge Device (Wajib Ada Monitor Aktif)
+        </h3>
+        <p style="font-size:12px; color:#9ca3af; margin-bottom:12px;">
+          Semua kolom di bawah wajib diisi. Jika server Project ID belum memiliki Monitor aktif, HP tidak dapat masuk ke mode Edge.
+        </p>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px;">
+          <div class="gate-field">
+            <label>Alamat MQTT Broker (WSS) *</label>
+            <input type="text" id="setupEdgeBroker" required value="wss://broker.emqx.io:8084/mqtt">
+          </div>
+          <div class="gate-field">
+            <label>Project ID (Wajib Sama dengan Monitor) *</label>
+            <input type="text" id="setupEdgeProject" required value="STS_Firdaus_999">
+          </div>
+          <div class="gate-field">
+            <label>Nama HP / Identitas Pengguna *</label>
+            <input type="text" id="setupEdgeName" required placeholder="Contoh: HP Firdaus">
+          </div>
+        </div>
+        <div id="edgeHandshakeStatus" class="hidden" style="padding:10px 12px; border-radius:10px; background:#1e293b; color:#fbbf24; font-size:12px; font-weight:700; margin-top:8px;">
+          <i class="fa-solid fa-spinner fa-spin"></i> Memverifikasi keberadaan Monitor aktif pada server MQTT...
+        </div>
+        <div style="display:flex; justify-content:space-between; gap:10px; margin-top:14px;">
+          <button type="button" class="btn btn-abu" onclick="kembaliKePilihanPeran()">
+            <i class="fa-solid fa-arrow-left"></i> Kembali
+          </button>
+          <button type="submit" id="btnVerifyAndEnterEdge" class="btn btn-hijau">
+            <i class="fa-solid fa-check-double"></i> Cek Monitor &amp; Kunci Mode Edge
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL VERIFIKASI SANDI MASTER MONITOR ================= -->
+  <div id="passwordModalOverlay" class="pwd-modal-overlay hidden">
+    <div class="pwd-modal-box">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h4 style="font-size:16px; font-weight:800; color:#fbbf24;">
+          <i class="fa-solid fa-key"></i> Otorisasi Sandi Monitor
+        </h4>
+        <button onclick="closePasswordModal()" style="color:#9ca3af;"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <p id="pwdModalDesc" style="font-size:12.5px; color:#cbd5e1; margin-bottom:14px;">
+        Tindakan ini memerlukan Sandi Master Monitor untuk melanjutkan.
+      </p>
+      <form onsubmit="confirmPasswordAction(event)">
+        <div class="gate-field" id="pwdNewValueWrap" style="display:none;">
+          <label id="pwdNewValueLabel">Nilai Baru</label>
+          <input type="text" id="pwdNewValueInput">
+        </div>
+        <div class="gate-field">
+          <label>Masukkan Sandi Master Monitor</label>
+          <input type="password" id="pwdVerifyInput" required placeholder="Ketik sandi monitor...">
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
+          <button type="button" class="btn btn-abu" onclick="closePasswordModal()">Batal</button>
+          <button type="submit" class="btn btn-utama"><i class="fa-solid fa-unlock-keyhole"></i> Konfirmasi</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= NAVBAR STICKY (GAYA SEWAIN AJA + STRICT ROLE) ================= -->
+  <nav class="navbar">
+    <div class="container navbar-inner">
+      <div class="brand">
+        <div class="brand-logo">STS</div>
+        <div>
+          <span class="brand-name">Speed<span>Tracking</span></span>
+          <span class="brand-sub" id="roleNavbarSub">Anti-Theft System</span>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <button class="tab aktif-monitor" id="navTabMonitor" data-tab="monitor" onclick="pindahTab('monitor')">
+          <i class="fa-solid fa-gauge-high"></i> Monitor &amp; Speedometer
+        </button>
+        <button class="tab hidden" id="navTabEdge" data-tab="edge" onclick="pindahTab('edge')">
+          <i class="fa-solid fa-mobile-screen-button"></i> Mode HP (Edge Sensor)
+        </button>
+        <button class="tab" id="navTabDocs" data-tab="docs" onclick="pindahTab('docs')">
+          <i class="fa-solid fa-layer-group"></i> Arsitektur Sistem
+        </button>
+      </div>
+
+      <div class="nav-aksi">
+        <span id="mqttGlobalBadge" class="chip-mqtt">MQTT: Disconnected</span>
+        <span class="chip-mqtt mono" id="clockBadge"><i class="fa-regular fa-clock"></i> --:--:--</span>
+        <button class="btn btn-hitam" id="btnSwitchRoleHeader" onclick="requestSwitchRoleWithAuth()" title="Ganti Peran (Butuh Sandi Monitor / Izin Monitor)">
+          <i class="fa-solid fa-user-lock"></i> Ganti Peran
+        </button>
+      </div>
+    </div>
+
+    <div class="nav-mobile">
+      <button id="mobTabMonitor" onclick="pindahTab('monitor')" style="color:#dc2626"><i class="fa-solid fa-gauge-high"></i>Monitor</button>
+      <button id="mobTabEdge" class="hidden" onclick="pindahTab('edge')" style="color:#ea580c"><i class="fa-solid fa-mobile-screen"></i>Mode HP</button>
+      <button onclick="pindahTab('docs')" style="color:#0284c7"><i class="fa-solid fa-layer-group"></i>Arsitektur</button>
+    </div>
+  </nav>
+
+  <!-- ================= HERO KUNING-AMBER & KONFIGURASI TERPROTEKSI ================= -->
+  <header class="hero">
+    <div class="container">
+      <div class="hero-grid">
+        <div>
+          <div class="badge-hero">
+            <span class="titik"></span>
+            Anti-Theft Role Lock, Verifikasi Monitor Aktif &amp; Proteksi Sandi Master
+          </div>
+          <h1>Pantau Kecepatan &amp; Safezone dalam <em>Satu Radar</em></h1>
+          <p class="lead">
+            <strong>STS (Speed and Tracking System)</strong> memisahkan secara ketat peran <strong>Monitor</strong> dan <strong>Edge Device</strong>. Seluruh parameter krusial (MQTT Broker, Project ID, Kecepatan, Safezone, dan Koneksi) terkunci dengan <strong>Sandi Master Monitor</strong> agar tidak dapat dimanipulasi saat perangkat dicuri.
+          </p>
+        </div>
+
+        <!-- Kartu Preview Miring + Hiasan Gambar Peta Kota Malam -->
+        <div class="preview">
+          <div class="preview-head">
+            <div>
+              <h3><i class="fa-solid fa-satellite-dish" style="color:#fbbf24"></i> Night City Telemetry Grid</h3>
+              <small>Visualisasi Node Aktif &amp; Perimeter Safezone</small>
+            </div>
+            <span class="status-pill merah" style="font-size:10px">LIVE</span>
+          </div>
+          <div class="night-map-grid">
+            <div class="night-map-item">
+              <img src="Peta Kota Malam dengan Penanda Oranye.png" alt="Peta Kota Malam 1"
+                   onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+              <div class="night-map-fallback">
+                <i class="fa-solid fa-location-dot" style="font-size:20px;margin-bottom:4px"></i>
+                <span>Grid Alpha Radar</span>
+              </div>
+              <div class="night-map-tag"><span class="titik" style="width:6px;height:6px;background:#f97316;border-radius:50%"></span> Sector Alpha</div>
+            </div>
+            <div class="night-map-item">
+              <img src="image_78cc80.jpg" alt="Peta Kota Malam 2"
+                   onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+              <div class="night-map-fallback">
+                <i class="fa-solid fa-compass" style="font-size:20px;margin-bottom:4px"></i>
+                <span>Corridor Grid B</span>
+              </div>
+              <div class="night-map-tag"><span class="titik" style="width:6px;height:6px;background:#38bdf8;border-radius:50%"></span> Safezone Grid</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bar Pengaturan Parameter Terkunci (Butuh Sandi Monitor untuk Ubah) -->
+      <div class="config-bar" id="globalConfigBar">
+        <div class="config-field">
+          <label><i class="fa-solid fa-cloud"></i> MQTT Broker WSS <i class="fa-solid fa-lock" style="color:#dc2626"></i></label>
+          <input type="text" id="brokerUrl" value="wss://broker.emqx.io:8084/mqtt" readonly class="locked-input">
+        </div>
+        <div class="config-field">
+          <label><i class="fa-solid fa-key"></i> Project ID <i class="fa-solid fa-lock" style="color:#dc2626"></i></label>
+          <input type="text" id="projectId" value="STS_Firdaus_999" readonly class="locked-input">
+        </div>
+        <div class="config-field">
+          <label><i class="fa-solid fa-gauge-simple-high"></i> Batas Speed (km/j) <i class="fa-solid fa-lock" style="color:#dc2626"></i></label>
+          <input type="number" id="thresholdInput" value="2.5" step="0.5" min="0" readonly class="locked-input">
+        </div>
+        <div class="config-field">
+          <label><i class="fa-solid fa-shield-halved"></i> Safezone (Maks 10m) <i class="fa-solid fa-lock" style="color:#dc2626"></i></label>
+          <input type="number" id="safezoneRadiusInput" value="10" min="1" max="10" readonly class="locked-input">
+        </div>
+        <div class="config-field">
+          <label><i class="fa-solid fa-stopwatch"></i> Interval (detik)</label>
+          <input type="number" id="intervalInput" value="2" min="1" readonly class="locked-input">
+        </div>
+        <div class="config-field" id="configEditBtnWrap" style="display:flex; align-items:flex-end;">
+          <button class="btn btn-hitam" style="width:100%; justify-content:center; padding:8px;" onclick="openConfigEditWithAuth()">
+            <i class="fa-solid fa-key" style="color:#fbbf24"></i> Ubah Parameter
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ========================================================================= -->
+  <!-- TAB 1: MONITOR LAPTOP (TEMA GELAP + FLOATING PIP + OS NOTIFICATION)       -->
+  <!-- ========================================================================= -->
+  <section id="view-monitor" class="tab-view dash-dark">
+    <div class="dash-head-dark">
+      <div class="container dash-head-inner">
+        <div>
+          <div class="kicker-red"><i class="fa-solid fa-circle" style="font-size:8px"></i> Mode Operasional Supervisor Multi-Edge</div>
+          <h2>Monitor Kecepatan, Speedometer &amp; Safezone</h2>
+          <p>Aksi penting (Matikan Monitor, Set Safezone, Kick/Blokir, Ganti Nama) dilindungi Sandi Master. Fitur tampilan &amp; log bebas diakses.</p>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn btn-merah" id="btnToggleMonitor" onclick="requestToggleMonitorWithAuth()">
+            <i class="fa-solid fa-satellite-dish"></i> Aktifkan Monitor
+          </button>
+          <button class="btn btn-utama" onclick="requestResetAllSafezonesWithAuth()">
+            <i class="fa-solid fa-location-crosshairs"></i> Kunci Semua Safezone <i class="fa-solid fa-lock" style="font-size:10px"></i>
+          </button>
+          <!-- Fitur Ringan / Tidak Berdampak ke Data HP = Tanpa Sandi -->
+          <button class="btn btn-ungu" id="btnFloatingPip" onclick="toggleFloatingMiniMonitor()" title="Bebas diakses tanpa sandi">
+            <i class="fa-solid fa-window-restore"></i> Mode Floating
+          </button>
+          <button class="btn btn-biru" id="btnOsNotif" onclick="requestOsNotificationPermission()" title="Bebas diakses tanpa sandi">
+            <i class="fa-solid fa-bell"></i> Notifikasi OS: OFF
+          </button>
+          <button class="btn btn-abu" id="btnToggleAudio" onclick="toggleAlarmAudio()" title="Bebas diakses tanpa sandi">
+            <i class="fa-solid fa-volume-high"></i> Alarm: ON
+          </button>
+          <button class="btn btn-abu" onclick="resetMonitorLogsAndCharts()" title="Bebas diakses tanpa sandi">
+            <i class="fa-solid fa-rotate-left"></i> Bersihkan Log
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="container">
+      <!-- 4 Kartu Ringkasan Statistik -->
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="judul">HP Aktif Terhubung</div>
+          <div class="nilai" id="statTotalHp">0 Unit</div>
+          <small style="color:#38bdf8">Auto-off setelah 10 detik</small>
+        </div>
+        <div class="stat-card">
+          <div class="judul">Status Aman (Di Dalam Safezone)</div>
+          <div class="nilai" style="color:#34d399" id="statSafeHp">0 Unit</div>
+          <small style="color:#34d399">Koordinat diproteksi</small>
+        </div>
+        <div class="stat-card">
+          <div class="judul">HP Bergerak (Keluar Safezone)</div>
+          <div class="nilai" style="color:#ef4444" id="statBreachHp">0 Unit</div>
+          <small style="color:#f87171">Notifikasi OS &amp; Alarm aktif</small>
+        </div>
+        <div class="stat-card">
+          <div class="judul">Tersimpan di History Cache</div>
+          <div class="nilai" style="color:#fbbf24" id="statHistoryCount">0 Profil</div>
+          <small style="color:#fbbf24">Siap dipulihkan saat Reconnect</small>
+        </div>
+      </div>
+
+      <!-- Bar Daftar Blokir -->
+      <div id="blacklistBar" class="blacklist-bar hidden">
+        <div>
+          <strong style="color:#f87171"><i class="fa-solid fa-ban"></i> Daftar Perangkat Diblokir (Blacklist):</strong>
+          <span style="color:#9ca3af; margin-left:6px;">Klik perangkat untuk membuka blokir (Butuh Sandi)</span>
+        </div>
+        <div id="blacklistChips" class="blacklist-chips"></div>
+      </div>
+
+      <!-- Daftar Kartu Status Setiap HP Aktif -->
+      <div class="devices-header">
+        <h3><i class="fa-solid fa-mobile-screen-button" style="color:#38bdf8"></i> Status Perangkat HP Terhubung (Real-Time)</h3>
+        <span style="font-size:12px; color:#9ca3af;">Pengubahan Safezone, Nama HP, Kick, Blocker, dan Izin Ganti Peran membutuhkan Sandi Monitor.</span>
+      </div>
+
+      <div id="devicesGrid" class="devices-grid">
+        <div class="hp-card menunggu" style="grid-column: 1 / -1; text-align:center; padding: 32px;">
+          <p style="color:#9ca3af; font-size:14px;">
+            Monitor siap menerima koneksi HP pada Project ID ini. Pastikan HP memasukkan Broker &amp; Project ID yang sama.
+          </p>
+        </div>
+      </div>
+
+      <!-- BAGIAN HISTORY & CACHE PERANGKAT (OFFLINE) -->
+      <div class="devices-header" style="margin-top:32px; padding-top:18px; border-top:1px solid #374151;">
+        <h3>
+          <i class="fa-solid fa-clock-rotate-left" style="color:#fbbf24"></i>
+          History &amp; Cache Sementara (Perangkat Terputus / Offline &gt; 10 Detik)
+        </h3>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <span style="font-size:12px; color:#9ca3af;">Jika HP terhubung kembali dengan Nama User yang sama, grafik &amp; riwayat otomatis dilanjutkan.</span>
+          <button class="btn btn-abu" style="padding:5px 11px; font-size:11px;" onclick="clearAllHistoryCache()">
+            <i class="fa-solid fa-trash-can"></i> Bersihkan History
+          </button>
+        </div>
+      </div>
+
+      <div id="historyGrid" class="devices-grid">
+        <div class="hp-card history-card" style="grid-column: 1 / -1; text-align:center; padding: 22px;">
+          <p style="color:#9ca3af; font-size:13px;">Belum ada riwayat perangkat yang terputus di dalam cache.</p>
+        </div>
+      </div>
+
+      <!-- 3 Grafik Komparasi Multi-HP -->
+      <div class="charts-grid">
+        <div class="chart-card">
+          <h4><i class="fa-solid fa-gauge-high" style="color:#38bdf8"></i> 1. Perbandingan Kecepatan (km/jam)</h4>
+          <div class="chart-box"><canvas id="speedChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h4><i class="fa-solid fa-wave-square" style="color:#fbbf24"></i> 2. Perbandingan Getaran / RMS (m/s²)</h4>
+          <div class="chart-box"><canvas id="rmsChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h4><i class="fa-solid fa-ruler-horizontal" style="color:#ef4444"></i> 3. Jarak dari Titik Safezone (Meter)</h4>
+          <div class="chart-box"><canvas id="distChart"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Tabel Log Pelanggaran -->
+      <div class="tabel-box">
+        <div class="tabel-head">
+          <h3><i class="fa-solid fa-triangle-exclamation" style="color:#ef4444"></i> Log Peringatan HP Keluar Safezone (&gt; Batas Meter)</h3>
+          <span class="status-pill merah" id="logCountBadge">0 Kejadian</span>
+        </div>
+        <div class="scroll-x">
+          <table>
+            <thead>
+              <tr>
+                <th>Jam</th>
+                <th>Identitas HP</th>
+                <th>Status</th>
+                <th>Jarak Safezone</th>
+                <th>Durasi Keluar</th>
+                <th>Kecepatan</th>
+                <th>Getaran</th>
+                <th>Baterai</th>
+                <th>Koordinat Google Maps</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="alertLogBody">
+              <tr><td colspan="10" style="text-align:center; color:#9ca3af; padding:20px;">Belum ada pelanggaran Safezone.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================================= -->
+  <!-- TAB 2: MODE HP EDGE SENSOR (TERKUNCI ANTI-THEFT)                          -->
+  <!-- ========================================================================= -->
+  <section id="view-edge" class="tab-view dash-orange hidden">
+    <div class="dash-head-orange">
+      <div class="container dash-head-inner">
+        <div>
+          <div style="font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.08em;">
+            <i class="fa-solid fa-lock"></i> Mode Anti-Theft Edge Device (Terkunci ke Monitor)
+          </div>
+          <h2 style="font-size:26px; font-weight:800; margin-top:2px;">Node Sensor HP (Pengawasan Aktif)</h2>
+          <p style="font-size:12.5px; opacity:0.92;">Alamat MQTT Broker, Project ID, dan Nama HP telah dikunci. Perubahan nama, pemutusan koneksi, atau pindah peran hanya dapat dilakukan dengan Sandi/Izin Monitor.</p>
+        </div>
+        <span id="edgeStatusBadge" class="status-pill kuning" style="background:#fff; color:#ea580c;">TERKUNCI &amp; AKTIF</span>
+      </div>
+    </div>
+
+    <div class="container">
+      <div class="edge-box">
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:16px; align-items:end; margin-bottom:18px;">
+          <div>
+            <label style="display:block; font-size:12px; font-weight:800; margin-bottom:5px; color:#7c2d12;">
+              Identitas HP Terkunci <i class="fa-solid fa-lock"></i> (Hanya Monitor yang dapat mengubah)
+            </label>
+            <div style="display:flex; gap:8px;">
+              <input type="text" id="customPhoneName" readonly class="locked-input"
+                     style="flex:1; padding:9px 12px; border-radius:10px; border:1px solid #fdba74; outline:none; font-weight:800;">
+            </div>
+          </div>
+
+          <div style="display:flex; flex-wrap:wrap; gap:8px;">
+            <button id="btnStartEdge" class="btn btn-hijau" onclick="requestReconnectEdgeWithAuth()">
+              <i class="fa-solid fa-rotate"></i> Hubungkan Ulang <i class="fa-solid fa-lock" style="font-size:10px"></i>
+            </button>
+            <button id="btnStopEdge" class="btn btn-merah" onclick="requestStopEdgeWithAuth()" disabled>
+              <i class="fa-solid fa-stop"></i> Putuskan Koneksi <i class="fa-solid fa-lock" style="font-size:10px"></i>
+            </button>
+            <button id="btnSetSafezoneEdge" class="btn btn-utama" onclick="setSafezoneFromPhone()" disabled>
+              <i class="fa-solid fa-lock"></i> Set Safezone (Menunggu Izin Monitor)
+            </button>
+            <button id="btnEdgeSwitchRole" class="btn btn-hitam" onclick="requestSwitchRoleWithAuth()" disabled>
+              <i class="fa-solid fa-lock"></i> Ganti Peran (Menunggu Izin Monitor)
+            </button>
+          </div>
+        </div>
+
+        <div id="edgeSafezoneAlert" style="padding:12px 14px; border-radius:10px; background:#fffbeb; border:1px solid #fde68a; color:#78350f; font-size:12.5px; margin-bottom:20px;">
+          <i class="fa-solid fa-shield-halved"></i> <strong>Proteksi Anti-Pencurian Aktif:</strong> Perangkat ini terikat ke Monitor pada Project ID <strong id="edgeBoundProjectLbl">-</strong>. Pengaturan jaringan tidak dapat diubah dari perangkat ini.
+        </div>
+
+        <!-- Speedometer & Metrik Lokal di Layar HP -->
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:16px; align-items:center;">
+          <div style="background:#111827; color:#fff; padding:16px; border-radius:14px; text-align:center;">
+            <div style="font-size:11px; color:#9ca3af; font-weight:700; margin-bottom:4px;">SPEEDOMETER HP INI</div>
+            <div id="edgeLocalSpeedo"></div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+            <div style="padding:14px; border-radius:12px; background:#fff7ed; border:1px solid #fed7aa;">
+              <span style="font-size:11px; color:#9a3412; font-weight:700;">Identitas Terdaftar</span>
+              <div id="eDisplayName" style="font-size:18px; font-weight:800; color:#ea580c; margin-top:2px;">-</div>
+            </div>
+            <div style="padding:14px; border-radius:12px; background:#fff7ed; border:1px solid #fed7aa;">
+              <span style="font-size:11px; color:#9a3412; font-weight:700;">Getaran (RMS)</span>
+              <div style="font-size:18px; font-weight:800; color:#d97706; margin-top:2px;"><span id="eRms">0.00</span> <small>m/s²</small></div>
+            </div>
+            <div style="padding:14px; border-radius:12px; background:#fff7ed; border:1px solid #fed7aa;">
+              <span style="font-size:11px; color:#9a3412; font-weight:700;">Jarak dari Safezone</span>
+              <div style="font-size:18px; font-weight:800; color:#111827; margin-top:2px;"><span id="eDist">0.0</span> <small>m</small></div>
+            </div>
+            <div style="padding:14px; border-radius:12px; background:#fff7ed; border:1px solid #fed7aa;">
+              <span style="font-size:11px; color:#9a3412; font-weight:700;">Daya Baterai HP</span>
+              <div id="eBattery" style="font-size:18px; font-weight:800; color:#16a34a; margin-top:2px;">--%</div>
+            </div>
+            <div style="grid-column: 1 / -1; padding:12px 14px; border-radius:12px; background:#f3f4f6; border:1px solid #e5e7eb;">
+              <span style="font-size:11px; color:#4b5563; font-weight:700;">Status Transmisi GPS Sensor:</span>
+              <div id="eCoords" class="mono" style="font-size:13px; font-weight:700; color:#111827; margin-top:2px;">Menunggu kunci satelit GPS...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================================= -->
+  <!-- TAB 3: ARSITEKTUR SISTEM (TEMA BIRU SEWAIN AJA)                           -->
+  <!-- ========================================================================= -->
+  <section id="view-docs" class="tab-view dash-blue hidden">
+    <div class="dash-head-blue">
+      <div class="container">
+        <div style="font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.08em;">
+          <i class="fa-solid fa-diagram-project"></i> Dokumentasi Teknis &amp; Spesifikasi Keamanan Anti-Theft
+        </div>
+        <h2 style="font-size:26px; font-weight:800; margin-top:2px;">Arsitektur STS (Speed and Tracking System)</h2>
+        <p style="font-size:12.5px; opacity:0.92;">Pemisahan Peran Ketat (Role Lock), Verifikasi Monitor Aktif (Beacon Handshake), dan Otorisasi Sandi Master.</p>
+      </div>
+    </div>
+
+    <div class="container">
+      <div class="bmc-grid">
+        <div class="bmc-kotak" style="border-color:#dc2626">
+          <h4 style="color:#dc2626"><i class="fa-solid fa-user-lock"></i> 1. Strict Role Separation</h4>
+          <p>Perangkat yang masuk sebagai Monitor tidak bisa menjadi Edge, dan perangkat Edge tidak bisa membuka tampilan Monitor ataupun mengubah alamat Broker/Project ID tanpa izin &amp; sandi Monitor.</p>
+        </div>
+        <div class="bmc-kotak" style="border-color:#7c3aed">
+          <h4 style="color:#7c3aed"><i class="fa-solid fa-tower-broadcast"></i> 2. Verifikasi Monitor Aktif</h4>
+          <p>HP (Edge Device) wajib memverifikasi sinyal <code>monitor_status</code> (Retained Beacon) di broker MQTT. Jika Project ID belum memiliki Monitor aktif, HP ditolak masuk ke mode Edge.</p>
+        </div>
+        <div class="bmc-kotak" style="border-color:#10b981">
+          <h4 style="color:#059669"><i class="fa-solid fa-key"></i> 3. Otorisasi Sandi Selektif</h4>
+          <p>Sandi Master wajib dimasukkan saat memutus/blokir koneksi, mengubah Broker/Project ID, batas kecepatan, ukuran Safezone, atau mengganti nama HP. Fitur tampilan (Floating, Notifikasi, Bersihkan Log) bebas diakses.</p>
+        </div>
+        <div class="bmc-kotak" style="border-color:#f59e0b">
+          <h4 style="color:#d97706"><i class="fa-solid fa-window-restore"></i> 4. Floating PiP &amp; History</h4>
+          <p>Mendukung jendela mini melayang di luar browser (Always-on-Top) serta pemindahan otomatis HP yang offline &gt;10 detik ke History Cache.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Container Toast -->
+  <div id="toast-container"></div>
+
+<script>
+// ==================== HELPER & TOAST ====================
+const $ = (id) => document.getElementById(id);
+
+function tampilToast(pesan, jenis = 'info') {
+  const toast = document.createElement('div');
+  toast.className = 'toast ' + jenis;
+  toast.innerHTML = '<i class="fa-solid fa-circle-info"></i><span></span>';
+  toast.querySelector('span').textContent = pesan;
+  $('toast-container').appendChild(toast);
+  setTimeout(() => {
+    toast.classList.add('keluar');
+    setTimeout(() => toast.remove(), 300);
+  }, 3200);
+}
+
+// Hash sederhana untuk menyamakan sandi antara Monitor dan perintah ke Edge
+function simpleHash(str) {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(16);
+}
+
+// ==================== STATE PERAN TERKUNCI & SANDI MASTER ====================
+const ROLE_STORAGE_KEY = "sts_locked_role_v2";
+const MONITOR_CFG_KEY = "sts_monitor_cfg_v2";
+const EDGE_CFG_KEY = "sts_edge_cfg_v2";
+
+let lockedRole = null; // 'monitor' atau 'edge'
+let masterPasswordHash = ""; // Disimpan di Monitor & dikirim via beacon terenkripsi untuk validasi
+let pendingPasswordCallback = null;
+
+function pindahTab(nama) {
+  // Cegah pindah ke tab terlarang sesuai kunci peran
+  if (lockedRole === 'monitor' && nama === 'edge') {
+    tampilToast("Perangkat ini dikunci sebagai Monitor dan tidak dapat menjadi Edge Device.", "error");
+    return;
+  }
+  if (lockedRole === 'edge' && nama === 'monitor') {
+    tampilToast("Perangkat ini dikunci sebagai Edge Device dan tidak dapat membuka Monitor.", "error");
+    return;
+  }
+
+  document.querySelectorAll('.tab-view').forEach((v) => v.classList.add('hidden'));
+  $('view-' + nama).classList.remove('hidden');
+
+  document.querySelectorAll('.tab').forEach((t) => {
+    t.className = 'tab';
+    if (lockedRole === 'monitor' && t.dataset.tab === 'edge') t.classList.add('hidden');
+    if (lockedRole === 'edge' && t.dataset.tab === 'monitor') t.classList.add('hidden');
+    if (t.dataset.tab === nama) t.classList.add('aktif-' + nama);
+  });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ==================== GERBANG AWAL (ONBOARDING ROLE GATE) ====================
+function pilihSetupPeran(peran) {
+  $('gateRoleSelection').classList.add('hidden');
+  if (peran === 'monitor') {
+    $('formSetupMonitor').classList.remove('hidden');
+  } else {
+    $('formSetupEdge').classList.remove('hidden');
+  }
+}
+
+function kembaliKePilihanPeran() {
+  $('formSetupMonitor').classList.add('hidden');
+  $('formSetupEdge').classList.add('hidden');
+  $('edgeHandshakeStatus').classList.add('hidden');
+  $('gateRoleSelection').classList.remove('hidden');
+}
+
+function submitSetupMonitor(e) {
+  e.preventDefault();
+  const broker = $('setupMonBroker').value.trim();
+  const project = $('setupMonProject').value.trim();
+  const pwd = $('setupMonPassword').value;
+  const threshold = parseFloat($('setupMonThreshold').value) || 2.5;
+  const radius = Math.min(10, Math.max(1, parseFloat($('setupMonRadius').value) || 10));
+
+  if (!broker || !project || pwd.length < 4) {
+    tampilToast("Mohon lengkapi Broker, Project ID, dan Sandi minimal 4 karakter.", "error");
+    return;
+  }
+
+  masterPasswordHash = simpleHash(pwd);
+  lockedRole = 'monitor';
+
+  $('brokerUrl').value = broker;
+  $('projectId').value = project;
+  $('thresholdInput').value = threshold;
+  $('safezoneRadiusInput').value = radius;
+
+  localStorage.setItem(ROLE_STORAGE_KEY, 'monitor');
+  localStorage.setItem(MONITOR_CFG_KEY, JSON.stringify({
+    broker, project, pwdHash: masterPasswordHash, threshold, radius
+  }));
+
+  applyRoleLockUI('monitor');
+  $('roleGateOverlay').classList.add('hidden');
+  startMonitorMode();
+}
+
+// Saat HP ingin masuk sebagai Edge: Wajib cek apakah ada Monitor Aktif di Broker & Project ID tersebut
+function submitSetupEdge(e) {
+  e.preventDefault();
+  const broker = $('setupEdgeBroker').value.trim();
+  const project = $('setupEdgeProject').value.trim();
+  const name = $('setupEdgeName').value.trim();
+
+  if (!broker || !project || !name) {
+    tampilToast("Alamat MQTT, Project ID, dan Nama HP wajib diisi semua!", "error");
+    return;
+  }
+
+  const statusBox = $('edgeHandshakeStatus');
+  const btn = $('btnVerifyAndEnterEdge');
+  statusBox.classList.remove('hidden');
+  statusBox.style.color = "#fbbf24";
+  statusBox.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Menghubungi ${broker} &amp; memeriksa Monitor aktif pada Project ID "${project}"...`;
+  btn.disabled = true;
+
+  const tempClientId = "sts_probe_" + Math.random().toString(16).substring(2, 8);
+  const probeClient = mqtt.connect(broker, { clientId: tempClientId, clean: true, connectTimeout: 5000 });
+  const beaconTopic = `sts/${project}/monitor_status`;
+  let monitorFound = false;
+
+  const timer = setTimeout(() => {
+    if (!monitorFound) {
+      try { probeClient.end(true); } catch (err) {}
+      btn.disabled = false;
+      statusBox.style.color = "#f87171";
+      statusBox.innerHTML = `<i class="fa-solid fa-circle-xmark"></i> Gagal Masuk: Tidak ditemukan Monitor yang aktif pada Project ID "<strong>${project}</strong>"! Pastikan pengawas sudah mengaktifkan Monitor terlebih dahulu.`;
+      tampilToast("Ditolak: Server/Project ID tidak memiliki Monitor aktif!", "error");
+    }
+  }, 4500);
+
+  probeClient.on('connect', () => {
+    probeClient.subscribe(beaconTopic, { qos: 1 });
+  });
+
+  probeClient.on('message', (topic, message) => {
+    if (topic === beaconTopic) {
+      try {
+        const data = JSON.parse(message.toString());
+        if (data && data.active === true) {
+          monitorFound = true;
+          clearTimeout(timer);
+          masterPasswordHash = data.pwd_hash || "";
+          if (data.threshold !== undefined) $('thresholdInput').value = data.threshold;
+          if (data.radius !== undefined) $('safezoneRadiusInput').value = data.radius;
+
+          try { probeClient.end(true); } catch (err) {}
+          btn.disabled = false;
+
+          // Kunci peran sebagai Edge Device
+          lockedRole = 'edge';
+          phoneCustomName = name;
+          $('brokerUrl').value = broker;
+          $('projectId').value = project;
+          $('customPhoneName').value = name;
+          $('eDisplayName').textContent = name;
+          $('edgeBoundProjectLbl').textContent = project;
+
+          localStorage.setItem(ROLE_STORAGE_KEY, 'edge');
+          localStorage.setItem(EDGE_CFG_KEY, JSON.stringify({
+            broker, project, name, pwdHash: masterPasswordHash
+          }));
+
+          applyRoleLockUI('edge');
+          $('roleGateOverlay').classList.add('hidden');
+          startEdgeNode();
+        }
+      } catch (err) {}
+    }
+  });
+
+  probeClient.on('error', () => {
+    clearTimeout(timer);
+    try { probeClient.end(true); } catch (err) {}
+    btn.disabled = false;
+    statusBox.style.color = "#f87171";
+    statusBox.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Tidak dapat terhubung ke alamat MQTT Broker tersebut. Periksa kembali URL WSS.`;
+  });
+}
+
+function applyRoleLockUI(role) {
+  if (role === 'monitor') {
+    $('roleNavbarSub').textContent = "Locked: Master Monitor";
+    $('navTabMonitor').classList.remove('hidden');
+    $('mobTabMonitor').classList.remove('hidden');
+    $('navTabEdge').classList.add('hidden');
+    $('mobTabEdge').classList.add('hidden');
+    $('configEditBtnWrap').style.display = 'flex';
+    pindahTab('monitor');
+  } else if (role === 'edge') {
+    $('roleNavbarSub').textContent = "Locked: Protected Edge HP";
+    $('navTabMonitor').classList.add('hidden');
+    $('mobTabMonitor').classList.add('hidden');
+    $('navTabEdge').classList.remove('hidden');
+    $('mobTabEdge').classList.remove('hidden');
+    // Di HP Edge, sembunyikan tombol ubah parameter global agar pencuri tidak bisa mengutak-atik
+    $('configEditBtnWrap').style.display = 'none';
+    pindahTab('edge');
+  }
+}
+
+// ==================== MODAL VERIFIKASI SANDI MASTER MONITOR ====================
+function requireMonitorPassword(descText, onVerified, newValueConfig = null) {
+  $('pwdModalDesc').textContent = descText;
+  $('pwdVerifyInput').value = "";
+
+  const wrap = $('pwdNewValueWrap');
+  const valInput = $('pwdNewValueInput');
+  if (newValueConfig) {
+    wrap.style.display = 'block';
+    $('pwdNewValueLabel').textContent = newValueConfig.label;
+    valInput.type = newValueConfig.type || 'text';
+    valInput.value = newValueConfig.defaultValue || '';
+    valInput.placeholder = newValueConfig.placeholder || '';
+    valInput.required = true;
+  } else {
+    wrap.style.display = 'none';
+    valInput.required = false;
+  }
+
+  pendingPasswordCallback = onVerified;
+  $('passwordModalOverlay').classList.remove('hidden');
+  setTimeout(() => $('pwdVerifyInput').focus(), 80);
+}
+
+function closePasswordModal() {
+  $('passwordModalOverlay').classList.add('hidden');
+  pendingPasswordCallback = null;
+}
+
+function confirmPasswordAction(e) {
+  e.preventDefault();
+  const inputPwd = $('pwdVerifyInput').value;
+  if (simpleHash(inputPwd) !== masterPasswordHash) {
+    tampilToast("Sandi Master Monitor SALAH! Tindakan ditolak.", "error");
+    return;
+  }
+  const newVal = $('pwdNewValueInput').value.trim();
+  const cb = pendingPasswordCallback;
+  closePasswordModal();
+  if (cb) cb(newVal);
+}
+
+// Ganti Peran Perangkat (Monitor <-> Edge) setelah mendapat izin & verifikasi Sandi Monitor
+function requestSwitchRoleWithAuth() {
+  if (lockedRole === 'edge' && !canPhoneSwitchRole) {
+    tampilToast("Ditolak: HP ini belum mendapat izin Ganti Peran dari Monitor!", "error");
+    return;
+  }
+  requireMonitorPassword(
+    "Masukkan Sandi Master Monitor untuk membuka kunci peran dan kembali ke Gerbang Pemilihan Peran (Monitor / Edge):",
+    () => {
+      if (lockedRole === 'monitor' && isMonitorActive) {
+        stopMonitorModeInternal();
+      } else if (lockedRole === 'edge') {
+        stopEdgeNodeInternal(true);
+      }
+      localStorage.removeItem(ROLE_STORAGE_KEY);
+      localStorage.removeItem(MONITOR_CFG_KEY);
+      localStorage.removeItem(EDGE_CFG_KEY);
+      lockedRole = null;
+      kembaliKePilihanPeran();
+      $('roleGateOverlay').classList.remove('hidden');
+      tampilToast("Kunci peran berhasil dibuka. Silakan pilih peran baru.", "sukses");
+    }
+  );
+}
+
+// Buka Kunci Edit Parameter Global (Broker, Project ID, Batas Kecepatan, Radius Safezone)
+let isConfigUnlocked = false;
+function openConfigEditWithAuth() {
+  if (lockedRole !== 'monitor') return;
+  if (!isConfigUnlocked) {
+    requireMonitorPassword(
+      "Masukkan Sandi Master Monitor untuk membuka kunci pengelolaan MQTT Broker, Project ID, Batas Kecepatan, dan ukuran Safezone:",
+      () => {
+        isConfigUnlocked = true;
+        ['brokerUrl', 'projectId', 'thresholdInput', 'safezoneRadiusInput', 'intervalInput'].forEach(id => {
+          $(id).removeAttribute('readonly');
+          $(id).classList.remove('locked-input');
+        });
+        $('configEditBtnWrap').innerHTML = `
+          <button class="btn btn-hijau" style="width:100%; justify-content:center; padding:8px;" onclick="saveAndLockConfig()">
+            <i class="fa-solid fa-floppy-disk"></i> Simpan &amp; Kunci
+          </button>
+        `;
+        tampilToast("Parameter dibuka! Silakan ubah lalu klik Simpan & Kunci.", "sukses");
+      }
+    );
+  }
+}
+
+function saveAndLockConfig() {
+  isConfigUnlocked = false;
+  enforceMaxSafezone($('safezoneRadiusInput'));
+  ['brokerUrl', 'projectId', 'thresholdInput', 'safezoneRadiusInput', 'intervalInput'].forEach(id => {
+    $(id).setAttribute('readonly', 'true');
+    $(id).classList.add('locked-input');
+  });
+  $('configEditBtnWrap').innerHTML = `
+    <button class="btn btn-hitam" style="width:100%; justify-content:center; padding:8px;" onclick="openConfigEditWithAuth()">
+      <i class="fa-solid fa-key" style="color:#fbbf24"></i> Ubah Parameter
+    </button>
+  `;
+
+  // Simpan perubahan ke localStorage & siarkan ke seluruh HP
+  const saved = JSON.parse(localStorage.getItem(MONITOR_CFG_KEY) || "{}");
+  saved.broker = $('brokerUrl').value.trim();
+  saved.project = $('projectId').value.trim();
+  saved.threshold = parseFloat($('thresholdInput').value) || 2.5;
+  saved.radius = parseFloat($('safezoneRadiusInput').value) || 10;
+  localStorage.setItem(MONITOR_CFG_KEY, JSON.stringify(saved));
+
+  publishMonitorBeacon(true);
+  broadcastConfigUpdate();
+  if (isMonitorActive) renderDevicesGrid();
+  tampilToast("Parameter berhasil disimpan, disiarkan ke HP, dan dikunci kembali.", "sukses");
+}
+
+// ==================== FITUR NOTIFIKASI OS & FLOATING MINI-MONITOR (BEBAS TANPA SANDI) ====================
+let osNotifEnabled = false;
+const lastNotifTimestamp = {};
+
+async function requestOsNotificationPermission() {
+  if (!("Notification" in window)) {
+    tampilToast("Browser ini tidak mendukung Web Notifications API.", "error");
+    return;
+  }
+  if (Notification.permission === "granted") {
+    osNotifEnabled = !osNotifEnabled;
+    updateOsNotifButtonUI();
+    if (osNotifEnabled) {
+      sendSystemNotification("STS Radar Aktif", "Notifikasi Sistem Operasi siap memberikan peringatan anomali & status perangkat.", "sts_init");
+    }
+    return;
+  }
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm === "granted") {
+      osNotifEnabled = true;
+      updateOsNotifButtonUI();
+      sendSystemNotification("Notifikasi OS Diaktifkan", "Anda akan menerima banner peringatan meskipun sedang membuka aplikasi lain.", "sts_init");
+      tampilToast("Notifikasi Sistem Operasi berhasil diaktifkan!", "sukses");
+    } else {
+      tampilToast("Izin Notifikasi ditolak oleh browser.", "error");
+    }
+  } catch (e) {}
+}
+
+function updateOsNotifButtonUI() {
+  const btn = $('btnOsNotif');
+  if (osNotifEnabled && Notification.permission === "granted") {
+    btn.className = "btn btn-hijau";
+    btn.innerHTML = `<i class="fa-solid fa-bell"></i> Notifikasi OS: ON`;
+  } else {
+    btn.className = "btn btn-biru";
+    btn.innerHTML = `<i class="fa-solid fa-bell-slash"></i> Notifikasi OS: OFF`;
+  }
+}
+
+function sendSystemNotification(title, bodyText, tagKey = "sts_general", cooldownMs = 8000) {
+  if (!osNotifEnabled || !("Notification" in window) || Notification.permission !== "granted") return;
+  const now = Date.now();
+  if (lastNotifTimestamp[tagKey] && (now - lastNotifTimestamp[tagKey] < cooldownMs)) return;
+  lastNotifTimestamp[tagKey] = now;
+  try {
+    const notif = new Notification(title, {
+      body: bodyText,
+      tag: tagKey,
+      renotify: true,
+      requireInteraction: tagKey.includes("breach")
+    });
+    notif.onclick = () => { window.focus(); notif.close(); };
+  } catch (e) {}
+}
+
+let floatingWindowRef = null;
+
+async function toggleFloatingMiniMonitor() {
+  if (floatingWindowRef && !floatingWindowRef.closed) {
+    floatingWindowRef.close();
+    floatingWindowRef = null;
+    updateFloatingButtonUI(false);
+    return;
+  }
+  try {
+    if ("documentPictureInPicture" in window) {
+      floatingWindowRef = await window.documentPictureInPicture.requestWindow({ width: 360, height: 460 });
+    } else {
+      floatingWindowRef = window.open("", "STS_Mini_Monitor", "width=360,height=470,menubar=no,toolbar=no,location=no,status=no,resizable=yes");
+    }
+    if (!floatingWindowRef) {
+      tampilToast("Pop-up diblokir browser. Izinkan pop-up untuk membuka Mini-Monitor.", "error");
+      return;
+    }
+    setupFloatingWindowDocument(floatingWindowRef);
+    updateFloatingButtonUI(true);
+    renderFloatingMiniMonitor();
+    tampilToast("Floating Mini-Monitor aktif!", "sukses");
+    floatingWindowRef.addEventListener("pagehide", () => {
+      floatingWindowRef = null;
+      updateFloatingButtonUI(false);
+    });
+  } catch (err) {
+    tampilToast("Gagal membuka Floating Mini-Monitor: " + err.message, "error");
+  }
+}
+
+function updateFloatingButtonUI(isOpen) {
+  const btn = $('btnFloatingPip');
+  if (isOpen) {
+    btn.className = "btn btn-hijau";
+    btn.innerHTML = `<i class="fa-solid fa-window-restore"></i> Floating Aktif`;
+  } else {
+    btn.className = "btn btn-ungu";
+    btn.innerHTML = `<i class="fa-solid fa-window-restore"></i> Mode Floating`;
+  }
+}
+
+function setupFloatingWindowDocument(win) {
+  const doc = win.document;
+  doc.open();
+  doc.write(`
+    <!DOCTYPE html>
+    <html lang="id">
+    <head>
+      <meta charset="UTF-8">
+      <title>STS · Floating Mini-Monitor</title>
+      <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; background: #0b0f19; color: #f8fafc; padding: 12px; font-size: 12px; }
+        .pip-head { background: linear-gradient(90deg, #111827, #450a0a); border: 1px solid #7f1d1d; padding: 10px 12px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .pip-title { font-weight: 800; font-size: 13px; color: #fbbf24; }
+        .pip-sub { font-size: 10px; color: #9ca3af; }
+        .pip-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 10px; text-align: center; }
+        .pip-stat-box { background: #161f33; border: 1px solid #283548; padding: 6px; border-radius: 8px; }
+        .pip-stat-box .num { font-size: 15px; font-weight: 800; }
+        .pip-stat-box .lbl { font-size: 9.5px; color: #9ca3af; }
+        .pip-list { display: flex; flex-direction: column; gap: 8px; }
+        .pip-card { background: #141b2d; border: 1px solid #283548; border-left: 4px solid #10b981; border-radius: 10px; padding: 9px 10px; }
+        .pip-card.breach { border-left-color: #ef4444; background: linear-gradient(145deg, #241118, #141b2d); box-shadow: 0 0 15px rgba(239, 68, 68, 0.25); }
+        .pip-card.wait { border-left-color: #f59e0b; }
+        .pip-row-top { display: flex; justify-content: space-between; align-items: center; font-weight: 800; margin-bottom: 4px; }
+        .pip-badge { padding: 2px 7px; border-radius: 999px; font-size: 9.5px; font-weight: 800; }
+        .pip-badge.safe { background: rgba(16,185,129,0.2); color: #34d399; }
+        .pip-badge.alert { background: #dc2626; color: #fff; }
+        .pip-badge.wait { background: rgba(245,158,11,0.2); color: #fbbf24; }
+        .pip-meta { font-size: 11px; color: #cbd5e1; display: flex; justify-content: space-between; margin-top: 3px; }
+        .pip-coord { margin-top: 6px; padding-top: 5px; border-top: 1px dashed #374151; color: #fde047; font-family: monospace; font-size: 11px; display: flex; justify-content: space-between; align-items: center; }
+        .pip-btn { background: #f59e0b; color: #111827; border: 0; border-radius: 5px; padding: 2px 7px; font-size: 10px; font-weight: 800; cursor: pointer; }
+      </style>
+    </head>
+    <body>
+      <div class="pip-head">
+        <div>
+          <div class="pip-title">⚡ STS Mini-Monitor</div>
+          <div class="pip-sub" id="pipClock">Live Radar Always-on-Top</div>
+        </div>
+        <button class="pip-btn" onclick="window.opener ? window.opener.focus() : null">Buka Web</button>
+      </div>
+      <div class="pip-stats">
+        <div class="pip-stat-box"><div class="num" id="pipTotal" style="color:#38bdf8">0</div><div class="lbl">HP Aktif</div></div>
+        <div class="pip-stat-box"><div class="num" id="pipSafe" style="color:#34d399">0</div><div class="lbl">Aman</div></div>
+        <div class="pip-stat-box"><div class="num" id="pipBreach" style="color:#ef4444">0</div><div class="lbl">Bergerak!</div></div>
+      </div>
+      <div id="pipDevicesList" class="pip-list"></div>
+    </body>
+    </html>
+  `);
+  doc.close();
+}
+
+function renderFloatingMiniMonitor() {
+  if (!floatingWindowRef || floatingWindowRef.closed) return;
+  const doc = floatingWindowRef.document;
+  const listEl = doc.getElementById("pipDevicesList");
+  if (!listEl) return;
+
+  const list = Object.values(devicesRegistry);
+  const breachCount = list.filter(d => d.lastData && d.lastData.is_outside_safezone).length;
+  const safeCount = list.filter(d => d.safezone && d.lastData && !d.lastData.is_outside_safezone).length;
+
+  doc.getElementById("pipClock").textContent = "Update: " + new Date().toLocaleTimeString('id-ID');
+  doc.getElementById("pipTotal").textContent = list.length;
+  doc.getElementById("pipSafe").textContent = safeCount;
+  doc.getElementById("pipBreach").textContent = breachCount;
+
+  if (!list.length) {
+    listEl.innerHTML = `<div style="text-align:center; color:#9ca3af; padding:18px;">Belum ada HP aktif terhubung.</div>`;
+    return;
+  }
+
+  listEl.innerHTML = list.map(dev => {
+    const d = dev.lastData || {};
+    const hasSz = !!dev.safezone;
+    const isBreach = d.is_outside_safezone;
+    const stateCls = !hasSz ? "wait" : (isBreach ? "breach" : "");
+    const badgeHtml = !hasSz
+      ? `<span class="pip-badge wait">Tunggu Safezone</span>`
+      : isBreach
+        ? `<span class="pip-badge alert">🔴 HP BERGERAK!</span>`
+        : `<span class="pip-badge safe">🟢 AMAN</span>`;
+
+    const durStr = dev.breachStartMs ? formatDurationMs(Date.now() - dev.breachStartMs) : "00:00:00";
+    const coordStr = d.location ? `${d.location.latitude.toFixed(5)}, ${d.location.longitude.toFixed(5)}` : "-";
+
+    return `
+      <div class="pip-card ${stateCls}">
+        <div class="pip-row-top">
+          <span>${dev.displayName}</span>
+          ${badgeHtml}
+        </div>
+        <div class="pip-meta">
+          <span>🚀 ${(d.speed_kmh || 0).toFixed(1)} km/j</span>
+          <span>📏 ${(d.distance_m || 0).toFixed(1)} m</span>
+          <span>🔋 ${d.battery_pct ?? '--'}%</span>
+        </div>
+        ${isBreach ? `
+          <div class="pip-coord">
+            <span>⏱️ ${durStr} | 📍 ${coordStr}</span>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+// ==================== ALARM WEB AUDIO API (BEBAS DIAKSES TANPA SANDI) ====================
+let alarmAudioEnabled = true;
+let audioCtx = null;
+
+function toggleAlarmAudio() {
+  alarmAudioEnabled = !alarmAudioEnabled;
+  const btn = $('btnToggleAudio');
+  btn.innerHTML = alarmAudioEnabled
+    ? `<i class="fa-solid fa-volume-high"></i> Alarm: ON`
+    : `<i class="fa-solid fa-volume-xmark"></i> Alarm: MUTE`;
+  btn.style.borderColor = alarmAudioEnabled ? "#10b981" : "#4b5563";
+  tampilToast(alarmAudioEnabled ? 'Suara Alarm Peringatan Aktif' : 'Suara Alarm Dibisukan (Mute)', 'info');
+}
+
+function playBreachBeep() {
+  if (!alarmAudioEnabled) return;
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.22);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.22);
+  } catch (e) {}
+}
+
+// ==================== GENERATOR SVG SPEEDOMETER DINAMIS ====================
+function buildSpeedometerSvg(speedKmh, thresholdKmh) {
+  const spd = Math.max(0, parseFloat(speedKmh) || 0);
+  const limit = Math.max(0, parseFloat(thresholdKmh) || 2.5);
+  const maxScale = Math.max(15, Math.ceil((Math.max(spd, limit) + 3) / 5) * 5);
+
+  const ratio = Math.min(1, spd / maxScale);
+  const limitRatio = Math.min(1, limit / maxScale);
+
+  const angleDeg = -90 + (ratio * 180);
+  const limitAngleRad = Math.PI * (1 - limitRatio);
+
+  const cx = 75, cy = 72, r = 52;
+  const limX = (cx + r * Math.cos(limitAngleRad)).toFixed(1);
+  const limY = (cy - r * Math.sin(limitAngleRad)).toFixed(1);
+
+  const isOver = spd > limit && spd > 0;
+  const arcColor = isOver ? "#ef4444" : (spd > limit * 0.75 ? "#f59e0b" : "#10b981");
+  const dashArray = 163.36;
+  const dashOffset = (dashArray * (1 - ratio)).toFixed(1);
+
+  return `
+    <div class="speedo-wrap">
+      <svg viewBox="0 0 150 86" class="speedo-svg">
+        <path d="M 23 72 A 52 52 0 0 1 127 72" fill="none" stroke="#1f2937" stroke-width="11" stroke-linecap="round"/>
+        <path d="M 23 72 A 52 52 0 0 1 127 72" fill="none" stroke="${arcColor}" stroke-width="11"
+              stroke-linecap="round" stroke-dasharray="${dashArray}" stroke-dashoffset="${dashOffset}"
+              style="transition: stroke-dashoffset 0.35s ease, stroke 0.25s ease;"/>
+        <circle cx="${limX}" cy="${limY}" r="4.5" fill="#fbbf24" stroke="#111827" stroke-width="1.5">
+          <title>Batas Kecepatan: ${limit} km/j</title>
+        </circle>
+        <text x="16" y="84" fill="#6b7280" font-size="8.5" font-weight="700">0</text>
+        <text x="75" y="13" fill="#6b7280" font-size="8.5" font-weight="700" text-anchor="middle">${(maxScale/2).toFixed(0)}</text>
+        <text x="134" y="84" fill="#6b7280" font-size="8.5" font-weight="700" text-anchor="end">${maxScale}</text>
+        <g transform="translate(75, 72) rotate(${angleDeg.toFixed(1)})" style="transition: transform 0.35s ease;">
+          <polygon points="-2.5,0 0,-46 2.5,0" fill="${isOver ? '#f87171' : '#f8fafc'}"/>
+          <circle cx="0" cy="0" r="5.5" fill="#f59e0b" stroke="#111827" stroke-width="1.5"/>
+        </g>
+      </svg>
+      <div class="speedo-value-num" style="color:${isOver ? '#f87171' : '#38bdf8'}">${spd.toFixed(1)}</div>
+      <div class="speedo-unit-lbl">km/jam</div>
+      <span class="speedo-limit-tag">Batas: ${limit} km/j</span>
+    </div>
+  `;
+}
+
+// ==================== STATE GLOBAL STS & CACHE HISTORY ====================
+const DISCONNECT_TIMEOUT_MS = 10000;
+const STORAGE_CACHE_KEY = "sts_history_cache_v1";
+
+let mqttClient = null;
+let currentMode = null;
+let isMonitorActive = false;
+let publishTimer = null;
+
+let sessionDeviceId = localStorage.getItem("sts_my_device_id");
+if (!sessionDeviceId) {
+  sessionDeviceId = "dev_" + Math.random().toString(36).substring(2, 8);
+  localStorage.setItem("sts_my_device_id", sessionDeviceId);
+}
+let phoneCustomName = "";
+let assignedAutoName = "";
+
+let latestLat = -7.257745;
+let latestLon = 110.416302;
+let gpsSpeedKmh = 0.0;
+let accelWindow = [];
+let latestRms = 0.0;
+let batteryPct = 88;
+
+let mySafezone = null;
+let canPhoneSetSafezone = false;
+let canPhoneSwitchRole = false;
+
+const devicesRegistry = {};
+let historyCache = {};
+const blockedDevices = new Set();
+
+let deviceCounter = 0;
+let alertLogCount = 0;
+const palette = ['#38bdf8', '#f97316', '#10b981', '#a855f7', '#ec4899', '#eab308', '#14b8a6', '#f43f5e'];
+
+function loadHistoryFromStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_CACHE_KEY);
+    if (raw) historyCache = JSON.parse(raw) || {};
+  } catch (e) { historyCache = {}; }
+}
+
+function saveHistoryToStorage() {
+  try {
+    localStorage.setItem(STORAGE_CACHE_KEY, JSON.stringify(historyCache));
+  } catch (e) {}
+}
+
+setInterval(() => {
+  const nowStr = new Date().toLocaleTimeString('id-ID');
+  $('clockBadge').innerHTML = `<i class="fa-regular fa-clock"></i> ${nowStr}`;
+  if (isMonitorActive) {
+    updateMonitorStopwatches();
+    checkDisconnectedDevicesTimeout();
+    renderFloatingMiniMonitor();
+  }
+}, 1000);
+
+function enforceMaxSafezone(el) {
+  let val = parseFloat(el.value) || 10;
+  if (val > 10) val = 10;
+  if (val < 1) val = 1;
+  el.value = val;
+}
+
+function getTopicBase() {
+  const pid = $('projectId').value.trim() || 'STS_Firdaus_999';
+  return `sts/${pid}`;
+}
+
+function haversineMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const toRad = (d) => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
+  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function formatDurationMs(ms) {
+  if (!ms || ms < 0) return "00:00:00";
+  const totalSec = Math.floor(ms / 1000);
+  const hrs = String(Math.floor(totalSec / 3600)).padStart(2, '0');
+  const mins = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
+  const secs = String(totalSec % 60).padStart(2, '0');
+  return `${hrs}:${mins}:${secs}`;
+}
+
+// ==================== CHART.JS (3 GRAFIK KOMPARASI) ====================
+let speedChart, rmsChart, distChart;
+
+function initAppAndCharts() {
+  loadHistoryFromStorage();
+
+  if ("Notification" in window && Notification.permission === "granted") {
+    osNotifEnabled = true;
+    updateOsNotifButtonUI();
+  }
+
+  const commonOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    scales: {
+      x: { ticks: { color: '#9ca3af', maxTicksLimit: 6 }, grid: { color: '#1f2937' } },
+      y: { beginAtZero: true, ticks: { color: '#9ca3af' }, grid: { color: '#1f2937' } }
+    },
+    plugins: { legend: { labels: { color: '#f3f4f6', boxWidth: 12 } } }
+  };
+
+  speedChart = new Chart($('speedChart'), { type: 'line', data: { labels: [], datasets: [] }, options: commonOptions });
+  rmsChart = new Chart($('rmsChart'), { type: 'line', data: { labels: [], datasets: [] }, options: commonOptions });
+  distChart = new Chart($('distChart'), { type: 'line', data: { labels: [], datasets: [] }, options: commonOptions });
+
+  $('edgeLocalSpeedo').innerHTML = buildSpeedometerSvg(0, parseFloat($('thresholdInput').value) || 2.5);
+  updateMonitorSummaryStats();
+  renderHistoryGrid();
+
+  // Pulihkan kunci peran jika sebelumnya sudah pernah setup
+  const savedRole = localStorage.getItem(ROLE_STORAGE_KEY);
+  if (savedRole === 'monitor') {
+    try {
+      const cfg = JSON.parse(localStorage.getItem(MONITOR_CFG_KEY) || "{}");
+      if (cfg.broker && cfg.project && cfg.pwdHash) {
+        lockedRole = 'monitor';
+        masterPasswordHash = cfg.pwdHash;
+        $('brokerUrl').value = cfg.broker;
+        $('projectId').value = cfg.project;
+        $('thresholdInput').value = cfg.threshold ?? 2.5;
+        $('safezoneRadiusInput').value = cfg.radius ?? 10;
+        applyRoleLockUI('monitor');
+        $('roleGateOverlay').classList.add('hidden');
+        startMonitorMode();
+      }
+    } catch (e) {}
+  } else if (savedRole === 'edge') {
+    try {
+      const cfg = JSON.parse(localStorage.getItem(EDGE_CFG_KEY) || "{}");
+      if (cfg.broker && cfg.project && cfg.name) {
+        lockedRole = 'edge';
+        masterPasswordHash = cfg.pwdHash || "";
+        phoneCustomName = cfg.name;
+        $('brokerUrl').value = cfg.broker;
+        $('projectId').value = cfg.project;
+        $('customPhoneName').value = cfg.name;
+        $('eDisplayName').textContent = cfg.name;
+        $('edgeBoundProjectLbl').textContent = cfg.project;
+        applyRoleLockUI('edge');
+        $('roleGateOverlay').classList.add('hidden');
+        startEdgeNode();
+      }
+    } catch (e) {}
+  }
+}
+window.addEventListener('DOMContentLoaded', initAppAndCharts);
+
+function removeDatasetFromCharts(nameKey) {
+  [speedChart, rmsChart, distChart].forEach(chart => {
+    chart.data.datasets = chart.data.datasets.filter(ds => ds.userKey !== nameKey);
+    chart.update();
+  });
+}
+
+function pushDataToCharts(timeLabel) {
+  const charts = [
+    { chart: speedChart, key: 'speed_kmh', histKey: 'speed' },
+    { chart: rmsChart, key: 'accel_rms', histKey: 'rms' },
+    { chart: distChart, key: 'distance_m', histKey: 'dist' }
+  ];
+  charts.forEach(({ chart, key, histKey }) => {
+    chart.data.labels.push(timeLabel);
+    if (chart.data.labels.length > 20) chart.data.labels.shift();
+
+    Object.values(devicesRegistry).forEach((dev) => {
+      const uKey = dev.displayName.toLowerCase();
+      let ds = chart.data.datasets.find(d => d.userKey === uKey);
+      if (!ds) {
+        const restoredData = (dev.chartHistory && dev.chartHistory[histKey]) ? [...dev.chartHistory[histKey]] : [];
+        ds = {
+          userKey: uKey,
+          deviceId: dev.deviceId,
+          label: dev.displayName,
+          data: restoredData,
+          borderColor: dev.color,
+          backgroundColor: dev.color,
+          tension: 0.3,
+          borderWidth: 2,
+          pointRadius: 2
+        };
+        chart.data.datasets.push(ds);
+      } else {
+        ds.label = dev.displayName;
+        ds.borderColor = dev.color;
+      }
+      const val = dev.lastData ? (dev.lastData[key] || 0) : 0;
+      ds.data.push(val);
+      if (ds.data.length > 20) ds.data.shift();
+
+      if (!dev.chartHistory) dev.chartHistory = { speed: [], rms: [], dist: [] };
+      dev.chartHistory[histKey] = [...ds.data];
+    });
+    chart.update();
+  });
+}
+
+// ==================== KONEKSI MQTT & BEACON MONITOR AKTIF ====================
+function connectMqtt(onConnected, willConfig = null) {
+  if (mqttClient) { try { mqttClient.end(true); } catch(e){} mqttClient = null; }
+  const brokerUrl = $('brokerUrl').value.trim();
+  const clientId = `sts_${currentMode || 'node'}_${Math.random().toString(16).substring(2, 9)}`;
+
+  const badge = $('mqttGlobalBadge');
+  badge.className = "chip-mqtt wait";
+  badge.textContent = "MQTT: Connecting...";
+
+  const opts = { clientId, clean: true, connectTimeout: 5000 };
+  if (willConfig) opts.will = willConfig;
+
+  mqttClient = mqtt.connect(brokerUrl, opts);
+
+  mqttClient.on('connect', () => {
+    badge.className = "chip-mqtt ok";
+    badge.textContent = `MQTT: Connected`;
+    if (onConnected) onConnected();
+  });
+
+  mqttClient.on('error', () => {
+    badge.className = "chip-mqtt err";
+    badge.textContent = "MQTT: Error";
+  });
+}
+
+function publishMonitorBeacon(isActive) {
+  if (!mqttClient || !mqttClient.connected) return;
+  const beaconTopic = `${getTopicBase()}/monitor_status`;
+  const payload = {
+    active: isActive,
+    pwd_hash: masterPasswordHash,
+    threshold: parseFloat($('thresholdInput').value) || 2.5,
+    radius: Math.min(10, parseFloat($('safezoneRadiusInput').value) || 10),
+    timestamp: Date.now()
+  };
+  mqttClient.publish(beaconTopic, JSON.stringify(payload), { qos: 1, retain: true });
+}
+
+// ==================== TOGGLE AKTIFKAN / MATIKAN MONITOR (DILINDUNGI SANDI) ====================
+function requestToggleMonitorWithAuth() {
+  requireMonitorPassword(
+    isMonitorActive
+      ? "Masukkan Sandi Master Monitor untuk MEMATIKAN Monitor dan menghentikan server pemantauan:"
+      : "Masukkan Sandi Master Monitor untuk MENGAKTIFKAN kembali Monitor:",
+    () => {
+      if (isMonitorActive) {
+        stopMonitorModeInternal();
+      } else {
+        startMonitorMode();
+      }
+    }
+  );
+}
+
+function startMonitorMode() {
+  currentMode = 'monitor';
+  const beaconTopic = `${getTopicBase()}/monitor_status`;
+  const lwt = {
+    topic: beaconTopic,
+    payload: JSON.stringify({ active: false, timestamp: Date.now() }),
+    qos: 1,
+    retain: true
+  };
+
+  connectMqtt(() => {
+    isMonitorActive = true;
+    const base = getTopicBase();
+    mqttClient.subscribe([`${base}/edge/+/telemetry`, `${base}/edge/+/offline`], { qos: 1 });
+
+    // Pancarkan Retained Beacon bahwa Monitor Aktif di Project ID ini
+    publishMonitorBeacon(true);
+
+    const btn = $('btnToggleMonitor');
+    btn.className = "btn btn-hitam";
+    btn.innerHTML = `<i class="fa-solid fa-power-off" style="color:#ef4444"></i> Matikan Monitor <i class="fa-solid fa-lock" style="font-size:10px"></i>`;
+    tampilToast('Monitor AKTIF & memancarkan sinyal server ke perangkat Edge.', 'sukses');
+    renderDevicesGrid();
+
+    mqttClient.on('message', (topic, message) => {
+      if (!isMonitorActive) return;
+      try {
+        const payload = JSON.parse(message.toString());
+        if (topic.endsWith('/telemetry')) {
+          handleIncomingTelemetryOnMonitor(payload);
+        } else if (topic.endsWith('/offline')) {
+          if (payload.device_id && devicesRegistry[payload.device_id]) {
+            moveDeviceToHistory(payload.device_id, "Memutuskan koneksi (Stop)");
+          }
+        }
+      } catch (e) {}
+    });
+  }, lwt);
+}
+
+function stopMonitorModeInternal() {
+  isMonitorActive = false;
+  if (mqttClient && mqttClient.connected) {
+    try { publishMonitorBeacon(false); } catch (e) {}
+  }
+  setTimeout(() => {
+    if (mqttClient) {
+      try { mqttClient.end(true); } catch (e) {}
+      mqttClient = null;
+    }
+    $('mqttGlobalBadge').className = "chip-mqtt";
+    $('mqttGlobalBadge').textContent = "MQTT: Disconnected";
+
+    const btn = $('btnToggleMonitor');
+    btn.className = "btn btn-merah";
+    btn.innerHTML = `<i class="fa-solid fa-satellite-dish"></i> Aktifkan Monitor <i class="fa-solid fa-lock" style="font-size:10px"></i>`;
+    tampilToast('Monitor telah DIMATIKAN.', 'info');
+  }, 200);
+}
+
+// ==================== PEMROSESAN TELEMETRI & KONTROL BERPASSWORD ====================
+function handleIncomingTelemetryOnMonitor(data) {
+  const devId = data.device_id;
+  if (!devId) return;
+
+  const incomingName = (data.custom_name || "").trim();
+  const nameKey = incomingName.toLowerCase();
+
+  // 1. Cek Daftar Blokir
+  if (blockedDevices.has(devId) || (nameKey && blockedDevices.has(nameKey))) {
+    sendControlToPhone(devId, { action: "FORCE_DISCONNECT", reason: "Perangkat Anda diblokir oleh Monitor." });
+    return;
+  }
+
+  // 2. Registrasi HP Baru atau Auto-Restore dari History Cache
+  if (!devicesRegistry[devId]) {
+    if (nameKey) {
+      Object.keys(devicesRegistry).forEach(oldId => {
+        if (oldId !== devId && devicesRegistry[oldId].displayName.toLowerCase() === nameKey) {
+          moveDeviceToHistory(oldId, "Sesi diperbarui");
+        }
+      });
+    }
+
+    const cached = nameKey && historyCache[nameKey] ? historyCache[nameKey] : null;
+
+    if (cached) {
+      devicesRegistry[devId] = {
+        deviceId: devId,
+        orderIndex: cached.orderIndex || (++deviceCounter),
+        displayName: cached.displayName,
+        lastData: data,
+        safezone: cached.safezone || null,
+        canPhoneEditSafezone: !!cached.canPhoneEditSafezone,
+        canPhoneSwitchRole: !!cached.canPhoneSwitchRole,
+        breachStartMs: null,
+        color: cached.color || palette[(deviceCounter - 1) % palette.length],
+        coordHistory: cached.coordHistory || [],
+        chartHistory: cached.chartHistory || { speed: [], rms: [], dist: [] },
+        lastSeenMs: Date.now()
+      };
+      delete historyCache[nameKey];
+      saveHistoryToStorage();
+      renderHistoryGrid();
+
+      if (devicesRegistry[devId].safezone) {
+        sendControlToPhone(devId, { action: "SET_SAFEZONE", safezone: devicesRegistry[devId].safezone });
+      }
+      sendControlToPhone(devId, {
+        action: "SAFEZONE_PERMISSION",
+        allowed: devicesRegistry[devId].canPhoneEditSafezone,
+        can_switch_role: devicesRegistry[devId].canPhoneSwitchRole,
+        radius: Math.min(10, parseFloat($('safezoneRadiusInput').value) || 10)
+      });
+      tampilToast(`Selamat datang kembali, ${cached.displayName}! Data dipulihkan dari History.`, 'sukses');
+      sendSystemNotification(
+        `🔄 ${cached.displayName} Terhubung Kembali`,
+        `Data grafik dan titik Safezone berhasil dipulihkan dari History Cache.`,
+        `sts_conn_${devId}`,
+        5000
+      );
+    } else {
+      deviceCounter++;
+      const defaultName = incomingName !== "" ? incomingName : `HP ${deviceCounter}`;
+      const fallbackCache = historyCache[defaultName.toLowerCase()];
+      devicesRegistry[devId] = {
+        deviceId: devId,
+        orderIndex: deviceCounter,
+        displayName: defaultName,
+        lastData: data,
+        safezone: fallbackCache ? fallbackCache.safezone : null,
+        canPhoneEditSafezone: fallbackCache ? !!fallbackCache.canPhoneEditSafezone : false,
+        canPhoneSwitchRole: false,
+        breachStartMs: null,
+        color: fallbackCache ? fallbackCache.color : palette[(deviceCounter - 1) % palette.length],
+        coordHistory: fallbackCache ? (fallbackCache.coordHistory || []) : [],
+        chartHistory: fallbackCache ? (fallbackCache.chartHistory || { speed: [], rms: [], dist: [] }) : { speed: [], rms: [], dist: [] },
+        lastSeenMs: Date.now()
+      };
+      if (fallbackCache) {
+        delete historyCache[defaultName.toLowerCase()];
+        saveHistoryToStorage();
+        renderHistoryGrid();
+      }
+      sendControlToPhone(devId, { action: "ASSIGN_AUTO_NAME", auto_name: defaultName });
+      tampilToast(`Perangkat baru terhubung: ${devicesRegistry[devId].displayName}`, 'info');
+      sendSystemNotification(
+        `📱 Perangkat Baru: ${devicesRegistry[devId].displayName}`,
+        `Terhubung ke STS Radar. Silakan kunci titik Safezone (<=10m).`,
+        `sts_conn_${devId}`,
+        5000
+      );
+    }
+  }
+
+  const dev = devicesRegistry[devId];
+  dev.lastSeenMs = Date.now();
+
+  if (data.phone_safezone && dev.canPhoneEditSafezone) {
+    dev.safezone = {
+      lat: data.phone_safezone.lat,
+      lon: data.phone_safezone.lon,
+      radius: Math.min(10, parseFloat($('safezoneRadiusInput').value) || 10)
+    };
+    tampilToast(`${dev.displayName} memperbarui titik Safezone.`, 'sukses');
+  }
+
+  if (data.location) {
+    const coordStr = `${data.location.latitude.toFixed(6)}, ${data.location.longitude.toFixed(6)}`;
+    if (!dev.coordHistory) dev.coordHistory = [];
+    if (dev.coordHistory[0]?.coord !== coordStr) {
+      dev.coordHistory.unshift({
+        coord: coordStr,
+        time: new Date().toLocaleTimeString('id-ID'),
+        speed: (data.speed_kmh || 0).toFixed(1)
+      });
+      if (dev.coordHistory.length > 12) dev.coordHistory.pop();
+    }
+  }
+
+  const maxRad = Math.min(10, parseFloat($('safezoneRadiusInput').value) || 10);
+  const speedLimit = parseFloat($('thresholdInput').value) || 2.5;
+  let distM = 0;
+  let isOutsideSafezone = false;
+
+  if (dev.safezone && data.location) {
+    dev.safezone.radius = maxRad;
+    distM = haversineMeters(dev.safezone.lat, dev.safezone.lon, data.location.latitude, data.location.longitude);
+    isOutsideSafezone = distM > maxRad;
+  }
+
+  data.distance_m = parseFloat(distM.toFixed(2));
+  data.is_outside_safezone = isOutsideSafezone;
+
+  if (isOutsideSafezone) {
+    if (!dev.breachStartMs) dev.breachStartMs = Date.now();
+    playBreachBeep();
+    const coordNotif = data.location ? `${data.location.latitude.toFixed(5)}, ${data.location.longitude.toFixed(5)}` : "-";
+    sendSystemNotification(
+      `🚨 ANOMALI: ${dev.displayName} Keluar Safezone!`,
+      `Jarak: ${data.distance_m}m (> ${maxRad}m) | Speed: ${(data.speed_kmh || 0).toFixed(1)} km/j | Lokasi: ${coordNotif}`,
+      `sts_breach_${devId}`,
+      9000
+    );
+  } else {
+    if (dev.breachStartMs) {
+      sendSystemNotification(
+        `🟢 ${dev.displayName} Kembali Aman`,
+        `Perangkat telah kembali masuk ke dalam radius Safezone (${data.distance_m}m).`,
+        `sts_safe_${devId}`,
+        5000
+      );
+    }
+    dev.breachStartMs = null;
+  }
+
+  if ((data.speed_kmh || 0) > speedLimit && (data.speed_kmh || 0) > 0) {
+    sendSystemNotification(
+      `⚠️ Overspeed: ${dev.displayName} (${(data.speed_kmh || 0).toFixed(1)} km/j)`,
+      `Melebihi batas kecepatan ${speedLimit} km/j! Getaran: ${(data.accel_rms || 0).toFixed(2)} m/s²`,
+      `sts_speed_${devId}`,
+      10000
+    );
+  }
+
+  dev.lastData = data;
+  updateMonitorSummaryStats();
+  renderDevicesGrid();
+  renderFloatingMiniMonitor();
+  pushDataToCharts(new Date().toLocaleTimeString('id-ID'));
+
+  if (isOutsideSafezone) appendAlertLog(dev, data);
+}
+
+function checkDisconnectedDevicesTimeout() {
+  const now = Date.now();
+  Object.keys(devicesRegistry).forEach(devId => {
+    const dev = devicesRegistry[devId];
+    if (now - dev.lastSeenMs >= DISCONNECT_TIMEOUT_MS) {
+      moveDeviceToHistory(devId, "Tidak ada data selama 10 detik (Timeout)");
+    }
+  });
+}
+
+function moveDeviceToHistory(devId, reason = "Terputus") {
+  const dev = devicesRegistry[devId];
+  if (!dev) return;
+
+  const key = dev.displayName.toLowerCase();
+  historyCache[key] = {
+    displayName: dev.displayName,
+    lastDeviceId: dev.deviceId,
+    orderIndex: dev.orderIndex,
+    color: dev.color,
+    safezone: dev.safezone,
+    canPhoneEditSafezone: dev.canPhoneEditSafezone,
+    canPhoneSwitchRole: dev.canPhoneSwitchRole,
+    lastData: dev.lastData,
+    coordHistory: dev.coordHistory || [],
+    chartHistory: dev.chartHistory || { speed: [], rms: [], dist: [] },
+    disconnectedAt: new Date().toLocaleTimeString('id-ID'),
+    reason: reason
+  };
+
+  delete devicesRegistry[devId];
+  removeDatasetFromCharts(key);
+  saveHistoryToStorage();
+
+  updateMonitorSummaryStats();
+  renderDevicesGrid();
+  renderHistoryGrid();
+  renderFloatingMiniMonitor();
+  tampilToast(`${dev.displayName} dipindahkan ke History (${reason}).`, 'info');
+  sendSystemNotification(
+    `🔌 ${dev.displayName} Terputus (Offline)`,
+    `${reason}. Riwayat koordinat & grafik disimpan di History Cache.`,
+    `sts_off_${devId}`,
+    5000
+  );
+}
+
+// Semua aksi berdampak ke HP di bawah ini WAJIB menggunakan Sandi Master Monitor
+function kickDeviceFromMonitor(devId) {
+  const dev = devicesRegistry[devId];
+  if (!dev) return;
+  requireMonitorPassword(
+    `Masukkan Sandi Master Monitor untuk MEMUTUSKAN KONEKSI (Kick) perangkat "${dev.displayName}":`,
+    () => {
+      sendControlToPhone(devId, {
+        action: "FORCE_DISCONNECT",
+        reason: "Koneksi diputuskan oleh Pengawas Monitor."
+      });
+      moveDeviceToHistory(devId, "Diputus oleh Monitor (Kick)");
+    }
+  );
+}
+
+function blockDeviceFromMonitor(devId) {
+  const dev = devicesRegistry[devId];
+  if (!dev) return;
+  requireMonitorPassword(
+    `Masukkan Sandi Master Monitor untuk MEMBLOKIR (Blacklist) perangkat "${dev.displayName}":`,
+    () => {
+      const nameKey = dev.displayName.toLowerCase();
+      blockedDevices.add(devId);
+      blockedDevices.add(nameKey);
+
+      sendControlToPhone(devId, {
+        action: "FORCE_DISCONNECT",
+        reason: "Perangkat Anda telah DIBLOKIR oleh Monitor."
+      });
+
+      delete devicesRegistry[devId];
+      delete historyCache[nameKey];
+      removeDatasetFromCharts(nameKey);
+      saveHistoryToStorage();
+
+      renderBlacklistBar();
+      updateMonitorSummaryStats();
+      renderDevicesGrid();
+      renderHistoryGrid();
+      renderFloatingMiniMonitor();
+      tampilToast(`Perangkat "${dev.displayName}" berhasil diblokir & dihapus!`, 'error');
+    }
+  );
+}
+
+function unblockEntity(item) {
+  requireMonitorPassword(
+    `Masukkan Sandi Master Monitor untuk membuka blokir perangkat "${item}":`,
+    () => {
+      blockedDevices.delete(item);
+      renderBlacklistBar();
+      tampilToast(`Blokir untuk "${item}" telah dibuka.`, 'sukses');
+    }
+  );
+}
+
+function renderBlacklistBar() {
+  const bar = $('blacklistBar');
+  const container = $('blacklistChips');
+  if (blockedDevices.size === 0) {
+    bar.classList.add('hidden');
+    return;
+  }
+  bar.classList.remove('hidden');
+  container.innerHTML = Array.from(blockedDevices).map(item => `
+    <button class="blacklist-chip" onclick="unblockEntity('${item}')">
+      <i class="fa-solid fa-lock-open"></i> ${item} <i class="fa-solid fa-xmark"></i>
+    </button>
+  `).join('');
+}
+
+function updateMonitorSummaryStats() {
+  const list = Object.values(devicesRegistry);
+  const breachCount = list.filter(d => d.lastData && d.lastData.is_outside_safezone).length;
+  const safeCount = list.filter(d => d.safezone && d.lastData && !d.lastData.is_outside_safezone).length;
+  const histCount = Object.keys(historyCache).length;
+
+  $('statTotalHp').textContent = list.length + " Unit";
+  $('statSafeHp').textContent = safeCount + " Unit";
+  $('statBreachHp').textContent = breachCount + " Unit";
+  $('statHistoryCount').textContent = histCount + " Profil";
+}
+
+function renderDevicesGrid() {
+  const grid = $('devicesGrid');
+  const list = Object.values(devicesRegistry);
+  if (!list.length) {
+    grid.innerHTML = `
+      <div class="hp-card menunggu" style="grid-column: 1 / -1; text-align:center; padding: 28px;">
+        <p style="color:#9ca3af; font-size:13.5px;">
+          ${isMonitorActive
+            ? 'Menunggu sinyal HP yang aktif... (HP yang terputus >10 detik otomatis berada di bagian History di bawah).'
+            : 'Monitor sedang Nonaktif. Klik tombol <strong>"Aktifkan Monitor"</strong> di kanan atas untuk mulai membaca.'}
+        </p>
+      </div>`;
+    return;
+  }
+  grid.innerHTML = "";
+
+  const speedLimit = parseFloat($('thresholdInput').value) || 0;
+
+  list.forEach((dev) => {
+    const d = dev.lastData || {};
+    const hasSafezone = !!dev.safezone;
+    const isBreach = d.is_outside_safezone;
+
+    const cardStateClass = !hasSafezone ? "menunggu" : (isBreach ? "bergerak" : "aman");
+    const statusPillHtml = !hasSafezone
+      ? `<span class="status-pill kuning"><i class="fa-solid fa-hourglass-half"></i> Menunggu Safezone</span>`
+      : isBreach
+        ? `<span class="status-pill merah"><i class="fa-solid fa-circle"></i> HP Bergerak (Keluar Safezone!)</span>`
+        : `<span class="status-pill hijau"><i class="fa-solid fa-shield-check"></i> Aman</span>`;
+
+    const coordStr = d.location ? `${d.location.latitude.toFixed(6)}, ${d.location.longitude.toFixed(6)}` : "-";
+    const mapsUrl = d.location ? `https://www.google.com/maps?q=${d.location.latitude.toFixed(6)},${d.location.longitude.toFixed(6)}` : "#";
+    const breachDuration = dev.breachStartMs ? formatDurationMs(Date.now() - dev.breachStartMs) : "00:00:00";
+    const nowClock = new Date().toLocaleTimeString('id-ID');
+    const updateClock = new Date(d.timestamp || Date.now()).toLocaleTimeString('id-ID');
+
+    const zoneBoxHtml = !hasSafezone
+      ? `<div class="wait-box">
+           <i class="fa-solid fa-bell"></i> <strong>Perangkat Terhubung!</strong> Klik tombol <em>"Set Safezone (&le;10m)"</em> di bawah untuk mengunci posisi awal.
+         </div>`
+      : !isBreach
+        ? `<div class="safe-box">
+             <div><i class="fa-solid fa-shield-halved"></i> <strong>Status: Aman</strong> &middot; Jarak: <strong>${(d.distance_m || 0).toFixed(1)} m</strong> (Batas &le; ${dev.safezone.radius}m)</div>
+             <div style="font-size:11px; opacity:0.8; margin-top:3px;">Koordinat disembunyikan otomatis selama berada di dalam Safezone.</div>
+           </div>`
+        : `<div class="breach-box">
+             <div class="breach-title">🚨 PERINGATAN: HP Meninggalkan Safezone (${(d.distance_m || 0).toFixed(1)} m &gt; ${dev.safezone.radius} m)</div>
+             <div class="breach-row">
+               <span>⏱️ Durasi Meninggalkan Safezone:</span>
+               <strong class="mono" style="color:#fbbf24" id="timer_${dev.deviceId}">${breachDuration}</strong>
+             </div>
+             <div class="breach-row">
+               <span>🕒 Jam Sekarang:</span>
+               <strong class="mono" id="clock_${dev.deviceId}">${nowClock}</strong>
+             </div>
+             <div class="breach-coord-bar">
+               <span>📍 Koordinat: <strong class="mono" style="color:#fbbf24">${coordStr}</strong></span>
+               <div style="display:flex; gap:5px;">
+                 <button class="btn-outline-xs" onclick="salinKoordinat('${coordStr}')">Copy</button>
+                 <a href="${mapsUrl}" target="_blank" class="btn-outline-xs light">Maps</a>
+               </div>
+             </div>
+           </div>`;
+
+    const speedoHtml = buildSpeedometerSvg(d.speed_kmh || 0, speedLimit);
+
+    const card = document.createElement('div');
+    card.className = `hp-card ${cardStateClass}`;
+    card.innerHTML = `
+      <div>
+        <div class="hp-card-top">
+          <div class="hp-identity">
+            <span class="hp-dot" style="background:${dev.color}"></span>
+            <span>${dev.displayName}</span>
+            <span class="hp-devid">(${dev.deviceId})</span>
+          </div>
+          ${statusPillHtml}
+        </div>
+
+        ${zoneBoxHtml}
+
+        <div class="telemetry-showcase">
+          ${speedoHtml}
+          <div class="mini-metrics-grid">
+            <div class="mini-metric">
+              <span class="lbl">Getaran</span>
+              <span class="val" style="color:#fbbf24">${(d.accel_rms || 0).toFixed(2)} m/s²</span>
+            </div>
+            <div class="mini-metric">
+              <span class="lbl">Baterai HP</span>
+              <span class="val" style="color:#34d399">🔋 ${d.battery_pct !== undefined ? d.battery_pct + '%' : '--'}</span>
+            </div>
+            <div class="mini-metric">
+              <span class="lbl">Jarak Safezone</span>
+              <span class="val" style="color:${isBreach ? '#f87171' : '#e5e7eb'}">${(d.distance_m || 0).toFixed(1)} m</span>
+            </div>
+            <div class="mini-metric">
+              <span class="lbl">Jam Update</span>
+              <span class="val mono" style="color:#f3f4f6">${updateClock}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hp-card-actions">
+        <button class="btn-set-sz" onclick="lockSafezoneFromMonitor('${dev.deviceId}')">
+          🎯 Set Safezone <i class="fa-solid fa-lock" style="font-size:9px"></i>
+        </button>
+        <button class="btn-perm-sz ${dev.canPhoneEditSafezone ? 'aktif' : ''}" onclick="togglePhoneSafezonePermission('${dev.deviceId}')">
+          ${dev.canPhoneEditSafezone ? '🔓 Izin SZ & Peran: ON' : '🔒 Beri Izin HP'}
+        </button>
+        <button class="btn-rename" onclick="promptRenameDeviceOnMonitor('${dev.deviceId}')" title="Ganti Nama (Butuh Sandi)">
+          ✏️ Nama
+        </button>
+        <button class="btn-kick" onclick="kickDeviceFromMonitor('${dev.deviceId}')" title="Putuskan koneksi (Butuh Sandi)">
+          ⚡ Kick
+        </button>
+        <button class="btn-block" onclick="blockDeviceFromMonitor('${dev.deviceId}')" title="Blokir perangkat (Butuh Sandi)">
+          🚫 Blokir
+        </button>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function renderHistoryGrid() {
+  const grid = $('historyGrid');
+  const items = Object.entries(historyCache);
+  if (!items.length) {
+    grid.innerHTML = `
+      <div class="hp-card history-card" style="grid-column: 1 / -1; text-align:center; padding: 22px;">
+        <p style="color:#9ca3af; font-size:13px;">Belum ada riwayat perangkat yang terputus di dalam cache.</p>
+      </div>`;
+    return;
+  }
+
+  grid.innerHTML = items.map(([key, item]) => {
+    const lastLoc = item.lastData && item.lastData.location
+      ? `${item.lastData.location.latitude.toFixed(6)}, ${item.lastData.location.longitude.toFixed(6)}`
+      : "Tidak ada koordinat";
+    const szText = item.safezone
+      ? `${item.safezone.lat.toFixed(5)}, ${item.safezone.lon.toFixed(5)} (&le;${item.safezone.radius}m)`
+      : "Belum diset";
+
+    const recentCoordsHtml = (item.coordHistory || []).slice(0, 3).map(c => `
+      <div style="display:flex; justify-content:space-between; font-size:11px; padding:3px 0; border-bottom:1px dashed #1f2937;">
+        <span class="mono" style="color:#fde047">${c.coord}</span>
+        <span style="color:#9ca3af">${c.speed} km/j &middot; ${c.time}</span>
+      </div>
+    `).join('') || `<div style="font-size:11px; color:#6b7280;">Belum ada riwayat titik lokasi.</div>`;
+
+    return `
+      <div class="hp-card history-card">
+        <div>
+          <div class="hp-card-top">
+            <div class="hp-identity">
+              <span class="hp-dot" style="background:${item.color || '#9ca3af'}"></span>
+              <span>${item.displayName}</span>
+              <span class="hp-devid">(${item.lastDeviceId})</span>
+            </div>
+            <span class="status-pill abu"><i class="fa-solid fa-plug-circle-xmark"></i> Offline (${item.disconnectedAt})</span>
+          </div>
+
+          <div style="background:#0b0f19; border:1px solid #1f2937; border-radius:9px; padding:10px; margin-bottom:10px; font-size:11.5px;">
+            <div style="color:#9ca3af; margin-bottom:4px;"><strong>Alasan:</strong> ${item.reason || 'Timeout 10s'}</div>
+            <div style="color:#a7f3d0; margin-bottom:4px;"><strong>Safezone Tersimpan:</strong> <span class="mono">${szText}</span></div>
+            <div style="color:#e5e7eb; margin-bottom:6px;">
+              <strong>Koordinat Terakhir:</strong> <span class="mono" style="color:#fbbf24">${lastLoc}</span>
+              <button class="btn-outline-xs" style="margin-left:6px;" onclick="salinKoordinat('${lastLoc}')">Copy</button>
+            </div>
+            <div style="color:#38bdf8; font-weight:700; margin-bottom:3px;">Riwayat Koordinat di Cache (${(item.coordHistory || []).length} titik):</div>
+            ${recentCoordsHtml}
+          </div>
+        </div>
+
+        <div class="hp-card-actions">
+          <span style="font-size:11px; color:#9ca3af;"><i class="fa-solid fa-rotate"></i> Auto-Restore saat <strong>${item.displayName}</strong> terhubung lagi</span>
+          <button class="btn-block" style="margin-left:auto;" onclick="deleteSingleHistoryCache('${key}')">
+            <i class="fa-solid fa-trash"></i> Hapus Cache
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// Fitur receh / lokal (Bersihkan History & Log) tidak membutuhkan sandi
+function deleteSingleHistoryCache(key) {
+  delete historyCache[key];
+  saveHistoryToStorage();
+  updateMonitorSummaryStats();
+  renderHistoryGrid();
+  tampilToast('Cache riwayat perangkat dihapus.', 'info');
+}
+
+function clearAllHistoryCache() {
+  historyCache = {};
+  saveHistoryToStorage();
+  updateMonitorSummaryStats();
+  renderHistoryGrid();
+  tampilToast('Seluruh History Cache berhasil dibersihkan.', 'sukses');
+}
+
+function salinKoordinat(teks) {
+  const temp = document.createElement('textarea');
+  temp.value = teks;
+  document.body.appendChild(temp);
+  temp.select();
+  document.execCommand('copy');
+  document.body.removeChild(temp);
+  tampilToast('Koordinat disalin: ' + teks, 'sukses');
+}
+
+function updateMonitorStopwatches() {
+  const nowStr = new Date().toLocaleTimeString('id-ID');
+  Object.values(devicesRegistry).forEach((dev) => {
+    if (dev.breachStartMs) {
+      const tEl = $(`timer_${dev.deviceId}`);
+      const cEl = $(`clock_${dev.deviceId}`);
+      if (tEl) tEl.textContent = formatDurationMs(Date.now() - dev.breachStartMs);
+      if (cEl) cEl.textContent = nowStr;
+    }
+  });
+}
+
+function lockSafezoneFromMonitorInternal(devId) {
+  const dev = devicesRegistry[devId];
+  if (!dev || !dev.lastData || !dev.lastData.location) return;
+  const maxRad = Math.min(10, parseFloat($('safezoneRadiusInput').value) || 10);
+  dev.safezone = {
+    lat: dev.lastData.location.latitude,
+    lon: dev.lastData.location.longitude,
+    radius: maxRad
+  };
+  dev.breachStartMs = null;
+  dev.lastData.distance_m = 0;
+  dev.lastData.is_outside_safezone = false;
+  sendControlToPhone(devId, { action: "SET_SAFEZONE", safezone: dev.safezone });
+  updateMonitorSummaryStats();
+  renderDevicesGrid();
+  renderFloatingMiniMonitor();
+  tampilToast(`Safezone ${dev.displayName} dikunci (Radius maks ${maxRad}m).`, 'sukses');
+}
+
+function lockSafezoneFromMonitor(devId) {
+  const dev = devicesRegistry[devId];
+  if (!dev) return;
+  requireMonitorPassword(
+    `Masukkan Sandi Master Monitor untuk menetapkan/mereset titik Safezone "${dev.displayName}":`,
+    () => lockSafezoneFromMonitorInternal(devId)
+  );
+}
+
+function requestResetAllSafezonesWithAuth() {
+  requireMonitorPassword(
+    "Masukkan Sandi Master Monitor untuk mengunci ulang seluruh titik Safezone perangkat HP:",
+    () => {
+      Object.keys(devicesRegistry).forEach(devId => lockSafezoneFromMonitorInternal(devId));
+    }
+  );
+}
+
+function togglePhoneSafezonePermission(devId) {
+  const dev = devicesRegistry[devId];
+  if (!dev) return;
+  requireMonitorPassword(
+    `Masukkan Sandi Master Monitor untuk mengubah hak akses Safezone & Ganti Peran pada "${dev.displayName}":`,
+    () => {
+      dev.canPhoneEditSafezone = !dev.canPhoneEditSafezone;
+      dev.canPhoneSwitchRole = dev.canPhoneEditSafezone;
+      sendControlToPhone(devId, {
+        action: "SAFEZONE_PERMISSION",
+        allowed: dev.canPhoneEditSafezone,
+        can_switch_role: dev.canPhoneSwitchRole,
+        radius: Math.min(10, parseFloat($('safezoneRadiusInput').value) || 10)
+      });
+      renderDevicesGrid();
+      tampilToast(
+        dev.canPhoneEditSafezone
+          ? `Akses ubah Safezone & Ganti Peran diberikan ke ${dev.displayName}`
+          : `Akses dicabut dari ${dev.displayName}`,
+        'info'
+      );
+    }
+  );
+}
+
+function promptRenameDeviceOnMonitor(devId) {
+  const dev = devicesRegistry[devId];
+  if (!dev) return;
+  requireMonitorPassword(
+    `Masukkan Nama Baru dan Sandi Master Monitor untuk mengganti identitas "${dev.displayName}":`,
+    (newName) => {
+      if (!newName) return;
+      const oldKey = dev.displayName.toLowerCase();
+      dev.displayName = newName;
+      removeDatasetFromCharts(oldKey);
+      sendControlToPhone(devId, { action: "RENAME_DEVICE", new_name: dev.displayName });
+      renderDevicesGrid();
+      renderFloatingMiniMonitor();
+      tampilToast(`Nama perangkat berhasil diubah menjadi ${dev.displayName}`, 'sukses');
+    },
+    {
+      label: "Nama Identitas HP Baru",
+      defaultValue: dev.displayName,
+      placeholder: "Contoh: HP Kurir 01"
+    }
+  );
+}
+
+function broadcastConfigUpdate() {
+  if (!mqttClient || !mqttClient.connected) return;
+  const maxRad = Math.min(10, parseFloat($('safezoneRadiusInput').value) || 10);
+  const speedLim = parseFloat($('thresholdInput').value) || 2.5;
+  Object.keys(devicesRegistry).forEach(devId => {
+    if (devicesRegistry[devId].safezone) devicesRegistry[devId].safezone.radius = maxRad;
+    sendControlToPhone(devId, { action: "UPDATE_RADIUS", radius: maxRad, threshold: speedLim });
+  });
+}
+
+function sendControlToPhone(devId, payload) {
+  if (!mqttClient || !mqttClient.connected) return;
+  mqttClient.publish(`${getTopicBase()}/edge/${devId}/control`, JSON.stringify(payload), { qos: 1 });
+}
+
+function appendAlertLog(dev, data) {
+  alertLogCount++;
+  $('logCountBadge').textContent = `${alertLogCount} Kejadian`;
+  const tbody = $('alertLogBody');
+  if (alertLogCount === 1) tbody.innerHTML = "";
+
+  const coordStr = `${data.location.latitude.toFixed(6)}, ${data.location.longitude.toFixed(6)}`;
+  const mapsUrl = `https://www.google.com/maps?q=${data.location.latitude.toFixed(6)},${data.location.longitude.toFixed(6)}`;
+  const durationStr = dev.breachStartMs ? formatDurationMs(Date.now() - dev.breachStartMs) : "00:00:00";
+
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td class="mono">${new Date().toLocaleTimeString('id-ID')}</td>
+    <td><strong style="color:${dev.color}">${dev.displayName}</strong></td>
+    <td><span class="status-pill merah">HP Bergerak</span></td>
+    <td><strong style="color:#f87171">${data.distance_m.toFixed(1)} m</strong></td>
+    <td class="mono" style="color:#fbbf24">${durationStr}</td>
+    <td><strong style="color:#38bdf8">${(data.speed_kmh || 0).toFixed(1)} km/j</strong></td>
+    <td>${(data.accel_rms || 0).toFixed(2)} m/s²</td>
+    <td style="color:#34d399">🔋 ${data.battery_pct}%</td>
+    <td class="mono" style="color:#fde047">${coordStr}</td>
+    <td>
+      <button class="btn-outline-xs" onclick="salinKoordinat('${coordStr}')">Copy</button>
+      <a href="${mapsUrl}" target="_blank" class="btn-outline-xs light">Maps</a>
+    </td>
+  `;
+  tbody.prepend(tr);
+}
+
+// Fitur Bersihkan Log bebas diakses tanpa sandi
+function resetMonitorLogsAndCharts() {
+  alertLogCount = 0;
+  $('logCountBadge').textContent = "0 Kejadian";
+  $('alertLogBody').innerHTML = `<tr><td colspan="10" style="text-align:center; color:#9ca3af; padding:20px;">Log dan grafik berhasil dibersihkan.</td></tr>`;
+  [speedChart, rmsChart, distChart].forEach(c => {
+    c.data.labels = [];
+    c.data.datasets.forEach(ds => ds.data = []);
+    c.update();
+  });
+  tampilToast('Log peringatan dan grafik telah dibersihkan.', 'info');
+}
+
+// ==================== MODE 2: HP EDGE SENSOR (TERKUNCI ANTI-THEFT) ====================
+async function initBatteryReader() {
+  if (navigator.getBattery) {
+    try {
+      const bat = await navigator.getBattery();
+      batteryPct = Math.round(bat.level * 100);
+      $('eBattery').textContent = batteryPct + "%";
+      bat.addEventListener('levelchange', () => {
+        batteryPct = Math.round(bat.level * 100);
+        $('eBattery').textContent = batteryPct + "%";
+      });
+    } catch (e) {}
+  } else {
+    $('eBattery').textContent = batteryPct + "%";
+  }
+}
+
+function requestStopEdgeWithAuth() {
+  requireMonitorPassword(
+    "Masukkan Sandi Master Monitor untuk MEMUTUSKAN transmisi pelacakan pada HP ini:",
+    () => stopEdgeNodeInternal(true)
+  );
+}
+
+function requestReconnectEdgeWithAuth() {
+  requireMonitorPassword(
+    "Masukkan Sandi Master Monitor untuk MENGHUBUNGKAN ULANG sensor HP ini ke Monitor:",
+    () => startEdgeNode()
+  );
+}
+
+async function startEdgeNode() {
+  stopEdgeNodeInternal(false);
+  currentMode = 'edge';
+  if (phoneCustomName) $('eDisplayName').textContent = phoneCustomName;
+
+  await initBatteryReader();
+
+  if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+    try { await DeviceMotionEvent.requestPermission(); } catch (e) {}
+  }
+  window.addEventListener('devicemotion', onPhoneMotion);
+
+  if (navigator.geolocation) {
+    navigator.geolocation.watchPosition((pos) => {
+      latestLat = pos.coords.latitude;
+      latestLon = pos.coords.longitude;
+      if (pos.coords.speed !== null && !isNaN(pos.coords.speed)) {
+        gpsSpeedKmh = pos.coords.speed * 3.6;
+      }
+      $('eCoords').textContent = `${latestLat.toFixed(6)}, ${latestLon.toFixed(6)}`;
+    }, () => {
+      $('eCoords').textContent = `${latestLat.toFixed(6)}, ${latestLon.toFixed(6)}`;
+    }, { enableHighAccuracy: true, maximumAge: 0 });
+  }
+
+  connectMqtt(() => {
+    const controlTopic = `${getTopicBase()}/edge/${sessionDeviceId}/control`;
+    const beaconTopic = `${getTopicBase()}/monitor_status`;
+    mqttClient.subscribe([controlTopic, beaconTopic], { qos: 1 });
+
+    mqttClient.on('message', (topic, message) => {
+      try {
+        const data = JSON.parse(message.toString());
+        if (topic === controlTopic) {
+          handleControlFromMonitorOnPhone(data);
+        } else if (topic === beaconTopic && data.pwd_hash) {
+          masterPasswordHash = data.pwd_hash;
+        }
+      } catch (e) {}
+    });
+
+    publishEdgeTelemetry();
+    const intervalSec = Math.max(1, parseInt($('intervalInput').value) || 2);
+    publishTimer = setInterval(publishEdgeTelemetry, intervalSec * 1000);
+
+    $('btnStartEdge').disabled = true;
+    $('btnStopEdge').disabled = false;
+    $('edgeStatusBadge').textContent = "TERHUBUNG & TERKUNCI";
+    $('edgeStatusBadge').style.background = "#10b981";
+    $('edgeStatusBadge').style.color = "#fff";
+    tampilToast('Sensor HP aktif & terkunci ke Monitor.', 'sukses');
+  });
+}
+
+function handleControlFromMonitorOnPhone(cmd) {
+  if (cmd.action === "FORCE_DISCONNECT") {
+    stopEdgeNodeInternal(false);
+    $('edgeStatusBadge').textContent = "DIPUTUS MONITOR";
+    $('edgeStatusBadge').style.background = "#dc2626";
+    $('edgeStatusBadge').style.color = "#fff";
+    tampilToast(cmd.reason || "Koneksi diputus oleh Monitor.", 'error');
+    return;
+  }
+  if (cmd.action === "ASSIGN_AUTO_NAME" && !phoneCustomName) {
+    assignedAutoName = cmd.auto_name;
+    $('eDisplayName').textContent = assignedAutoName;
+  }
+  if (cmd.action === "RENAME_DEVICE") {
+    phoneCustomName = cmd.new_name;
+    $('customPhoneName').value = phoneCustomName;
+    $('eDisplayName').textContent = phoneCustomName;
+    const saved = JSON.parse(localStorage.getItem(EDGE_CFG_KEY) || "{}");
+    saved.name = phoneCustomName;
+    localStorage.setItem(EDGE_CFG_KEY, JSON.stringify(saved));
+    tampilToast(`Identitas HP diubah oleh Monitor menjadi: ${phoneCustomName}`, 'info');
+  }
+  if (cmd.action === "SET_SAFEZONE") {
+    mySafezone = cmd.safezone;
+    updateEdgeSafezoneBanner();
+    tampilToast('Titik Safezone dikunci/dipulihkan oleh Monitor.', 'sukses');
+  }
+  if (cmd.action === "SAFEZONE_PERMISSION") {
+    canPhoneSetSafezone = !!cmd.allowed;
+    canPhoneSwitchRole = !!cmd.can_switch_role;
+    const btnSz = $('btnSetSafezoneEdge');
+    btnSz.disabled = !canPhoneSetSafezone;
+    btnSz.innerHTML = canPhoneSetSafezone
+      ? `<i class="fa-solid fa-location-crosshairs"></i> Set Safezone (Diizinkan Monitor)`
+      : `<i class="fa-solid fa-lock"></i> Set Safezone (Menunggu Izin Monitor)`;
+
+    const btnRole = $('btnEdgeSwitchRole');
+    btnRole.disabled = !canPhoneSwitchRole;
+    btnRole.innerHTML = canPhoneSwitchRole
+      ? `<i class="fa-solid fa-unlock"></i> Ganti Peran (Diizinkan Monitor)`
+      : `<i class="fa-solid fa-lock"></i> Ganti Peran (Menunggu Izin Monitor)`;
+    updateEdgeSafezoneBanner();
+  }
+  if (cmd.action === "UPDATE_RADIUS") {
+    if (mySafezone && cmd.radius) mySafezone.radius = cmd.radius;
+    if (cmd.threshold !== undefined) $('thresholdInput').value = cmd.threshold;
+    if (cmd.radius !== undefined) $('safezoneRadiusInput').value = cmd.radius;
+    updateEdgeSafezoneBanner();
+  }
+}
+
+function setSafezoneFromPhone() {
+  if (!canPhoneSetSafezone) return;
+  requireMonitorPassword(
+    "Masukkan Sandi Master Monitor untuk mengunci titik Safezone baru dari HP ini:",
+    () => {
+      const maxRad = Math.min(10, parseFloat($('safezoneRadiusInput').value) || 10);
+      mySafezone = { lat: latestLat, lon: latestLon, radius: maxRad };
+      updateEdgeSafezoneBanner();
+      publishEdgeTelemetry(true);
+      tampilToast('Safezone berhasil dikunci dari HP!', 'sukses');
+    }
+  );
+}
+
+function updateEdgeSafezoneBanner() {
+  const box = $('edgeSafezoneAlert');
+  if (mySafezone) {
+    box.innerHTML = `✅ <strong>Safezone Aktif:</strong> Terkunci pada <code class="mono">${mySafezone.lat.toFixed(6)}, ${mySafezone.lon.toFixed(6)}</code> (Radius Maks ${mySafezone.radius}m).`;
+  } else if (canPhoneSetSafezone) {
+    box.innerHTML = `🔓 <strong>Akses Diberikan Monitor!</strong> Anda kini dapat menekan tombol <em>"Set Safezone"</em> atau <em>"Ganti Peran"</em> (dengan verifikasi Sandi Monitor).`;
+  } else {
+    box.innerHTML = `🔒 <strong>Proteksi Anti-Theft Aktif:</strong> Seluruh parameter jaringan dikunci. Hanya Monitor yang dapat mengubah Safezone atau memberikan izin akses.`;
+  }
+}
+
+function onPhoneMotion(e) {
+  if (currentMode !== 'edge') return;
+  const acc = e.accelerationIncludingGravity;
+  if (!acc || acc.x === null) return;
+  const mag = Math.sqrt(acc.x*acc.x + acc.y*acc.y + acc.z*acc.z);
+  accelWindow.push(Math.abs(mag - 9.81));
+  if (accelWindow.length > 15) accelWindow.shift();
+  const sumSq = accelWindow.reduce((a, b) => a + b*b, 0);
+  latestRms = Math.sqrt(sumSq / accelWindow.length);
+
+  const walkSpeed = latestRms > 0.35 ? Math.min(14, latestRms * 3.2) : 0;
+  const speed = Math.max(gpsSpeedKmh, walkSpeed);
+  const limit = parseFloat($('thresholdInput').value) || 2.5;
+
+  $('eRms').textContent = latestRms.toFixed(2);
+  $('edgeLocalSpeedo').innerHTML = buildSpeedometerSvg(speed, limit);
+}
+
+function publishEdgeTelemetry(sendPhoneSafezone = false) {
+  if (!mqttClient || !mqttClient.connected) return;
+  const walkSpeed = latestRms > 0.35 ? Math.min(14, latestRms * 3.2) : 0;
+  const speedKmh = parseFloat(Math.max(gpsSpeedKmh, walkSpeed).toFixed(2));
+  const rmsVal = parseFloat(latestRms.toFixed(2));
+  const limit = parseFloat($('thresholdInput').value) || 2.5;
+
+  $('edgeLocalSpeedo').innerHTML = buildSpeedometerSvg(speedKmh, limit);
+
+  if (mySafezone) {
+    const distM = haversineMeters(mySafezone.lat, mySafezone.lon, latestLat, latestLon);
+    $('eDist').textContent = distM.toFixed(1);
+    const badge = $('edgeStatusBadge');
+    if (distM > mySafezone.radius) {
+      badge.textContent = "🔴 HP BERGERAK (KELUAR SAFEZONE)";
+      badge.style.background = "#dc2626";
+      badge.style.color = "#fff";
+    } else {
+      badge.textContent = "🟢 AMAN (DI DALAM SAFEZONE)";
+      badge.style.background = "#10b981";
+      badge.style.color = "#fff";
+    }
+  }
+
+  const payload = {
+    device_id: sessionDeviceId,
+    custom_name: phoneCustomName,
+    speed_kmh: speedKmh,
+    accel_rms: rmsVal,
+    battery_pct: batteryPct,
+    location: {
+      latitude: parseFloat(latestLat.toFixed(6)),
+      longitude: parseFloat(latestLon.toFixed(6))
+    },
+    phone_safezone: sendPhoneSafezone && mySafezone ? mySafezone : null,
+    timestamp: Date.now()
+  };
+
+  mqttClient.publish(`${getTopicBase()}/edge/${sessionDeviceId}/telemetry`, JSON.stringify(payload), { qos: 1 });
+}
+
+function stopEdgeNodeInternal(notifyMonitor = false) {
+  window.removeEventListener('devicemotion', onPhoneMotion);
+  if (publishTimer) { clearInterval(publishTimer); publishTimer = null; }
+  if (notifyMonitor && mqttClient && mqttClient.connected) {
+    try {
+      mqttClient.publish(`${getTopicBase()}/edge/${sessionDeviceId}/offline`, JSON.stringify({ device_id: sessionDeviceId }), { qos: 1 });
+    } catch (e) {}
+  }
+  if (mqttClient && currentMode === 'edge') { try { mqttClient.end(true); } catch(e){} mqttClient = null; }
+  $('btnStartEdge').disabled = false;
+  $('btnStopEdge').disabled = true;
+  $('edgeStatusBadge').textContent = "TERPUTUS (LOCKED)";
+  $('edgeStatusBadge').style.background = "#fff";
+  $('edgeStatusBadge').style.color = "#ea580c";
+}
+</script>
+</body>
+</html>

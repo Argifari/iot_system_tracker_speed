@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f59e0b">
+  <title>STS - Speed and Tracking System</title>
+  
+  <link rel="manifest" href='data:application/manifest+json,{"name":"STS - Speed and Tracking System","short_name":"STS Radar","start_url":".","display":"standalone","background_color":"#111827","theme_color":"#f59e0b"}'>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Memanggil CSS Modular -->
+  <link rel="stylesheet" href="style.css">
+
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  
+  <!-- ================= GERBANG AWAL PEMILIHAN PERAN & SETUP KEAMANAN ================= -->
+  <div id="roleGateOverlay" class="gate-overlay">
+    <div class="gate-container">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div class="brand-logo" style="width:46px; height:46px; font-size:20px;">STS</div>
+          <div>
+            <h2 style="font-size:22px; font-weight:800; color:#fff;">STS · Anti-Theft Security Gate</h2>
+            <p style="font-size:12.5px; color:#9ca3af;">Pilih peran perangkat Anda. Setelah dikunci, peran tidak dapat diubah tanpa Sandi Master Monitor.</p>
+          </div>
+        </div>
+        <span class="status-pill kuning"><i class="fa-solid fa-shield-halved"></i> Strict Role Lock</span>
+      </div>
+
+      <!-- Pilihan 2 Peran -->
+      <div id="gateRoleSelection" class="gate-role-grid">
+        <div class="gate-role-card" onclick="pilihSetupPeran('monitor')">
+          <div>
+            <span class="status-pill merah" style="margin-bottom:10px;"><i class="fa-solid fa-desktop"></i> Master Controller</span>
+            <h3 style="font-size:19px; font-weight:800; margin-bottom:6px;">1. Masuk Sebagai Monitor (Pengawas)</h3>
+            <p style="font-size:12.5px; color:#9ca3af; line-height:1.5;">
+              Buat ruangan pemantauan baru, atur alamat MQTT Broker, Project ID, serta buat <strong>Sandi Master Monitor</strong> untuk memproteksi seluruh pengaturan penting dan mengontrol perangkat HP.
+            </p>
+          </div>
+          <button class="btn btn-merah" style="margin-top:16px; width:100%; justify-content:center;">
+            Setup Monitor Sekarang <i class="fa-solid fa-arrow-right"></i>
+          </button>
+        </div>
+
+        <div class="gate-role-card" onclick="pilihSetupPeran('edge')">
+          <div>
+            <span class="status-pill kuning" style="margin-bottom:10px;"><i class="fa-solid fa-mobile-screen-button"></i> Protected Node</span>
+            <h3 style="font-size:19px; font-weight:800; margin-bottom:6px;">2. Masuk Sebagai Edge Device (HP)</h3>
+            <p style="font-size:12.5px; color:#9ca3af; line-height:1.5;">
+              Hubungkan HP ini ke Monitor yang sudah aktif. <strong>Wajib mengisi Broker, Project ID, dan Nama HP</strong>. Sistem otomatis memverifikasi keberadaan Monitor aktif sebelum mengizinkan masuk.
+            </p>
+          </div>
+          <button class="btn btn-utama" style="margin-top:16px; width:100%; justify-content:center;">
+            Hubungkan HP ke Monitor <i class="fa-solid fa-link"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Form Setup Monitor Pertama Kali -->
+      <form id="formSetupMonitor" class="gate-form-box hidden" onsubmit="submitSetupMonitor(event)">
+        <h3 style="font-size:17px; font-weight:800; color:#fbbf24; margin-bottom:12px;">
+          <i class="fa-solid fa-user-shield"></i> Inisialisasi Akun Monitor &amp; Sandi Master
+        </h3>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px;">
+          <div class="gate-field">
+            <label>Alamat MQTT Broker (WSS) *</label>
+            <input type="text" id="setupMonBroker" required value="wss://broker.emqx.io:8084/mqtt">
+          </div>
+          <div class="gate-field">
+            <label>Project ID / Nama Room *</label>
+            <input type="text" id="setupMonProject" required value="STS_Firdaus_999">
+          </div>
+          <div class="gate-field">
+            <label>Buat Sandi Master Monitor *</label>
+            <input type="password" id="setupMonPassword" required placeholder="Minimal 4 karakter">
+          </div>
+          <div class="gate-field">
+            <label>Batas Kecepatan Awal (km/j)</label>
+            <input type="number" id="setupMonThreshold" value="2.5" step="0.5" min="0" required>
+          </div>
+          <div class="gate-field">
+            <label>Radius Safezone Awal (Maks 10m)</label>
+            <input type="number" id="setupMonRadius" value="10" min="1" max="10" required>
+          </div>
+        </div>
+        <div style="display:flex; justify-content:space-between; gap:10px; margin-top:14px;">
+          <button type="button" class="btn btn-abu" onclick="kembaliKePilihanPeran()">
+            <i class="fa-solid fa-arrow-left"></i> Kembali
+          </button>
+          <button type="submit" class="btn btn-merah">
+            <i class="fa-solid fa-lock"></i> Kunci Sebagai Monitor &amp; Aktifkan Server
+          </button>
+        </div>
+      </form>
+
+      <!-- Form Setup Edge Device (HP) Pertama Kali -->
+      <form id="formSetupEdge" class="gate-form-box hidden" onsubmit="submitSetupEdge(event)">
+        <h3 style="font-size:17px; font-weight:800; color:#38bdf8; margin-bottom:6px;">
+          <i class="fa-solid fa-satellite-dish"></i> Pendaftaran Edge Device (Wajib Ada Monitor Aktif)
+        </h3>
+        <p style="font-size:12px; color:#9ca3af; margin-bottom:12px;">
+          Semua kolom di bawah wajib diisi. Jika server Project ID belum memiliki Monitor aktif, HP tidak dapat masuk ke mode Edge.
+        </p>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px;">
+          <div class="gate-field">
+            <label>Alamat MQTT Broker (WSS) *</label>
+            <input type="text" id="setupEdgeBroker" required value="wss://broker.emqx.io:8084/mqtt">
+          </div>
+          <div class="gate-field">
+            <label>Project ID (Wajib Sama dengan Monitor) *</label>
+            <input type="text" id="setupEdgeProject" required value="STS_Firdaus_999">
+          </div>
+          <div class="gate-field">
+            <label>Nama HP / Identitas Pengguna *</label>
+            <input type="text" id="setupEdgeName" required placeholder="Contoh: HP Firdaus">
+          </div>
+        </div>
+        <div id="edgeHandshakeStatus" class="hidden" style="padding:10px 12px; border-radius:10px; background:#1e293b; color:#fbbf24; font-size:12px; font-weight:700; margin-top:8px;">
+          <i class="fa-solid fa-spinner fa-spin"></i> Memverifikasi keberadaan Monitor aktif pada server MQTT...
+        </div>
+        <div style="display:flex; justify-content:space-between; gap:10px; margin-top:14px;">
+          <button type="button" class="btn btn-abu" onclick="kembaliKePilihanPeran()">
+            <i class="fa-solid fa-arrow-left"></i> Kembali
+          </button>
+          <button type="submit" id="btnVerifyAndEnterEdge" class="btn btn-hijau">
+            <i class="fa-solid fa-check-double"></i> Cek Monitor &amp; Kunci Mode Edge
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL VERIFIKASI SANDI MASTER MONITOR ================= -->
+  <div id="passwordModalOverlay" class="pwd-modal-overlay hidden">
+    <div class="pwd-modal-box">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h4 style="font-size:16px; font-weight:800; color:#fbbf24;">
+          <i class="fa-solid fa-key"></i> Otorisasi Sandi Monitor
+        </h4>
+        <button onclick="closePasswordModal()" style="color:#9ca3af;"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <p id="pwdModalDesc" style="font-size:12.5px; color:#cbd5e1; margin-bottom:14px;">
+        Tindakan ini memerlukan Sandi Master Monitor untuk melanjutkan.
+      </p>
+      <form onsubmit="confirmPasswordAction(event)">
+        <div class="gate-field" id="pwdNewValueWrap" style="display:none;">
+          <label id="pwdNewValueLabel">Nilai Baru</label>
+          <input type="text" id="pwdNewValueInput">
+        </div>
+        <div class="gate-field">
+          <label>Masukkan Sandi Master Monitor</label>
+          <input type="password" id="pwdVerifyInput" required placeholder="Ketik sandi monitor...">
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
+          <button type="button" class="btn btn-abu" onclick="closePasswordModal()">Batal</button>
+          <button type="submit" class="btn btn-utama"><i class="fa-solid fa-unlock-keyhole"></i> Konfirmasi</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= NAVBAR STICKY (GAYA SEWAIN AJA + STRICT ROLE) ================= -->
+  <nav class="navbar">
+    <div class="container navbar-inner">
+      <div class="brand">
+        <div class="brand-logo">STS</div>
+        <div>
+          <span class="brand-name">Speed<span>Tracking</span></span>
+          <span class="brand-sub" id="roleNavbarSub">Anti-Theft System</span>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <button class="tab aktif-monitor" id="navTabMonitor" data-tab="monitor" onclick="pindahTab('monitor')">
+          <i class="fa-solid fa-gauge-high"></i> Monitor &amp; Speedometer
+        </button>
+        <button class="tab hidden" id="navTabEdge" data-tab="edge" onclick="pindahTab('edge')">
+          <i class="fa-solid fa-mobile-screen-button"></i> Mode HP (Edge Sensor)
+        </button>
+        <button class="tab" id="navTabDocs" data-tab="docs" onclick="pindahTab('docs')">
+          <i class="fa-solid fa-layer-group"></i> Arsitektur Sistem
+        </button>
+      </div>
+
+      <div class="nav-aksi">
+        <span id="mqttGlobalBadge" class="chip-mqtt">MQTT: Disconnected</span>
+        <span class="chip-mqtt mono" id="clockBadge"><i class="fa-regular fa-clock"></i> --:--:--</span>
+        <button class="btn btn-hitam" id="btnSwitchRoleHeader" onclick="requestSwitchRoleWithAuth()" title="Ganti Peran (Butuh Sandi Monitor / Izin Monitor)">
+          <i class="fa-solid fa-user-lock"></i> Ganti Peran
+        </button>
+      </div>
+    </div>
+
+    <div class="nav-mobile">
+      <button id="mobTabMonitor" onclick="pindahTab('monitor')" style="color:#dc2626"><i class="fa-solid fa-gauge-high"></i>Monitor</button>
+      <button id="mobTabEdge" class="hidden" onclick="pindahTab('edge')" style="color:#ea580c"><i class="fa-solid fa-mobile-screen"></i>Mode HP</button>
+      <button onclick="pindahTab('docs')" style="color:#0284c7"><i class="fa-solid fa-layer-group"></i>Arsitektur</button>
+    </div>
+  </nav>
+
+  <!-- ================= HERO KUNING-AMBER & KONFIGURASI TERPROTEKSI ================= -->
+  <header class="hero">
+    <div class="container">
+      <div class="hero-grid">
+        <div>
+          <div class="badge-hero">
+            <span class="titik"></span>
+            Anti-Theft Role Lock, Verifikasi Monitor Aktif &amp; Proteksi Sandi Master
+          </div>
+          <h1>Pantau Kecepatan &amp; Safezone dalam <em>Satu Radar</em></h1>
+          <p class="lead">
+            <strong>STS (Speed and Tracking System)</strong> memisahkan secara ketat peran <strong>Monitor</strong> dan <strong>Edge Device</strong>. Seluruh parameter krusial (MQTT Broker, Project ID, Kecepatan, Safezone, dan Koneksi) terkunci dengan <strong>Sandi Master Monitor</strong> agar tidak dapat dimanipulasi saat perangkat dicuri.
+          </p>
+        </div>
+
+        <!-- Kartu Preview Miring + Hiasan Gambar Peta Kota Malam -->
+        <div class="preview">
+          <div class="preview-head">
+            <div>
+              <h3><i class="fa-solid fa-satellite-dish" style="color:#fbbf24"></i> Night City Telemetry Grid</h3>
+              <small>Visualisasi Node Aktif &amp; Perimeter Safezone</small>
+            </div>
+            <span class="status-pill merah" style="font-size:10px">LIVE</span>
+          </div>
+          <div class="night-map-grid">
+            <div class="night-map-item">
+              <img src="Peta Kota Malam dengan Penanda Oranye.png" alt="Peta Kota Malam 1"
+                   onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+              <div class="night-map-fallback">
+                <i class="fa-solid fa-location-dot" style="font-size:20px;margin-bottom:4px"></i>
+                <span>Grid Alpha Radar</span>
+              </div>
+              <div class="night-map-tag"><span class="titik" style="width:6px;height:6px;background:#f97316;border-radius:50%"></span> Sector Alpha</div>
+            </div>
+            <div class="night-map-item">
+              <img src="image_78cc80.jpg" alt="Peta Kota Malam 2"
+                   onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+              <div class="night-map-fallback">
+                <i class="fa-solid fa-compass" style="font-size:20px;margin-bottom:4px"></i>
+                <span>Corridor Grid B</span>
+              </div>
+              <div class="night-map-tag"><span class="titik" style="width:6px;height:6px;background:#38bdf8;border-radius:50%"></span> Safezone Grid</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bar Pengaturan Parameter Terkunci (Butuh Sandi Monitor untuk Ubah) -->
+      <div class="config-bar" id="globalConfigBar">
+        <div class="config-field">
+          <label><i class="fa-solid fa-cloud"></i> MQTT Broker WSS <i class="fa-solid fa-lock" style="color:#dc2626"></i></label>
+          <input type="text" id="brokerUrl" value="wss://broker.emqx.io:8084/mqtt" readonly class="locked-input">
+        </div>
+        <div class="config-field">
+          <label><i class="fa-solid fa-key"></i> Project ID <i class="fa-solid fa-lock" style="color:#dc2626"></i></label>
+          <input type="text" id="projectId" value="STS_Firdaus_999" readonly class="locked-input">
+        </div>
+        <div class="config-field">
+          <label><i class="fa-solid fa-gauge-simple-high"></i> Batas Speed (km/j) <i class="fa-solid fa-lock" style="color:#dc2626"></i></label>
+          <input type="number" id="thresholdInput" value="2.5" step="0.5" min="0" readonly class="locked-input">
+        </div>
+        <div class="config-field">
+          <label><i class="fa-solid fa-shield-halved"></i> Safezone (Maks 10m) <i class="fa-solid fa-lock" style="color:#dc2626"></i></label>
+          <input type="number" id="safezoneRadiusInput" value="10" min="1" max="10" readonly class="locked-input">
+        </div>
+        <div class="config-field">
+          <label><i class="fa-solid fa-stopwatch"></i> Interval (detik)</label>
+          <input type="number" id="intervalInput" value="2" min="1" readonly class="locked-input">
+        </div>
+        <div class="config-field" id="configEditBtnWrap" style="display:flex; align-items:flex-end;">
+          <button class="btn btn-hitam" style="width:100%; justify-content:center; padding:8px;" onclick="openConfigEditWithAuth()">
+            <i class="fa-solid fa-key" style="color:#fbbf24"></i> Ubah Parameter
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ========================================================================= -->
+  <!-- TAB 1: MONITOR LAPTOP (TEMA GELAP + FLOATING PIP + OS NOTIFICATION)       -->
+  <!-- ========================================================================= -->
+  <section id="view-monitor" class="tab-view dash-dark">
+    <div class="dash-head-dark">
+      <div class="container dash-head-inner">
+        <div>
+          <div class="kicker-red"><i class="fa-solid fa-circle" style="font-size:8px"></i> Mode Operasional Supervisor Multi-Edge</div>
+          <h2>Monitor Kecepatan, Speedometer &amp; Safezone</h2>
+          <p>Aksi penting (Matikan Monitor, Set Safezone, Kick/Blokir, Ganti Nama) dilindungi Sandi Master. Fitur tampilan &amp; log bebas diakses.</p>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn btn-merah" id="btnToggleMonitor" onclick="requestToggleMonitorWithAuth()">
+            <i class="fa-solid fa-satellite-dish"></i> Aktifkan Monitor
+          </button>
+          <button class="btn btn-utama" onclick="requestResetAllSafezonesWithAuth()">
+            <i class="fa-solid fa-location-crosshairs"></i> Kunci Semua Safezone <i class="fa-solid fa-lock" style="font-size:10px"></i>
+          </button>
+          <!-- Fitur Ringan / Tidak Berdampak ke Data HP = Tanpa Sandi -->
+          <button class="btn btn-ungu" id="btnFloatingPip" onclick="toggleFloatingMiniMonitor()" title="Bebas diakses tanpa sandi">
+            <i class="fa-solid fa-window-restore"></i> Mode Floating
+          </button>
+          <button class="btn btn-biru" id="btnOsNotif" onclick="requestOsNotificationPermission()" title="Bebas diakses tanpa sandi">
+            <i class="fa-solid fa-bell"></i> Notifikasi OS: OFF
+          </button>
+          <button class="btn btn-abu" id="btnToggleAudio" onclick="toggleAlarmAudio()" title="Bebas diakses tanpa sandi">
+            <i class="fa-solid fa-volume-high"></i> Alarm: ON
+          </button>
+          <button class="btn btn-abu" onclick="resetMonitorLogsAndCharts()" title="Bebas diakses tanpa sandi">
+            <i class="fa-solid fa-rotate-left"></i> Bersihkan Log
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="container">
+      <!-- 4 Kartu Ringkasan Statistik -->
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="judul">HP Aktif Terhubung</div>
+          <div class="nilai" id="statTotalHp">0 Unit</div>
+          <small style="color:#38bdf8">Auto-off setelah 10 detik</small>
+        </div>
+        <div class="stat-card">
+          <div class="judul">Status Aman (Di Dalam Safezone)</div>
+          <div class="nilai" style="color:#34d399" id="statSafeHp">0 Unit</div>
+          <small style="color:#34d399">Koordinat diproteksi</small>
+        </div>
+        <div class="stat-card">
+          <div class="judul">HP Bergerak (Keluar Safezone)</div>
+          <div class="nilai" style="color:#ef4444" id="statBreachHp">0 Unit</div>
+          <small style="color:#f87171">Notifikasi OS &amp; Alarm aktif</small>
+        </div>
+        <div class="stat-card">
+          <div class="judul">Tersimpan di History Cache</div>
+          <div class="nilai" style="color:#fbbf24" id="statHistoryCount">0 Profil</div>
+          <small style="color:#fbbf24">Siap dipulihkan saat Reconnect</small>
+        </div>
+      </div>
+
+      <!-- Bar Daftar Blokir -->
+      <div id="blacklistBar" class="blacklist-bar hidden">
+        <div>
+          <strong style="color:#f87171"><i class="fa-solid fa-ban"></i> Daftar Perangkat Diblokir (Blacklist):</strong>
+          <span style="color:#9ca3af; margin-left:6px;">Klik perangkat untuk membuka blokir (Butuh Sandi)</span>
+        </div>
+        <div id="blacklistChips" class="blacklist-chips"></div>
+      </div>
+
+      <!-- Daftar Kartu Status Setiap HP Aktif -->
+      <div class="devices-header">
+        <h3><i class="fa-solid fa-mobile-screen-button" style="color:#38bdf8"></i> Status Perangkat HP Terhubung (Real-Time)</h3>
+        <span style="font-size:12px; color:#9ca3af;">Pengubahan Safezone, Nama HP, Kick, Blocker, dan Izin Ganti Peran membutuhkan Sandi Monitor.</span>
+      </div>
+
+      <div id="devicesGrid" class="devices-grid">
+        <div class="hp-card menunggu" style="grid-column: 1 / -1; text-align:center; padding: 32px;">
+          <p style="color:#9ca3af; font-size:14px;">
+            Monitor siap menerima koneksi HP pada Project ID ini. Pastikan HP memasukkan Broker &amp; Project ID yang sama.
+          </p>
+        </div>
+      </div>
+
+      <!-- BAGIAN HISTORY & CACHE PERANGKAT (OFFLINE) -->
+      <div class="devices-header" style="margin-top:32px; padding-top:18px; border-top:1px solid #374151;">
+        <h3>
+          <i class="fa-solid fa-clock-rotate-left" style="color:#fbbf24"></i>
+          History &amp; Cache Sementara (Perangkat Terputus / Offline &gt; 10 Detik)
+        </h3>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <span style="font-size:12px; color:#9ca3af;">Jika HP terhubung kembali dengan Nama User yang sama, grafik &amp; riwayat otomatis dilanjutkan.</span>
+          <button class="btn btn-abu" style="padding:5px 11px; font-size:11px;" onclick="clearAllHistoryCache()">
+            <i class="fa-solid fa-trash-can"></i> Bersihkan History
+          </button>
+        </div>
+      </div>
+
+      <div id="historyGrid" class="devices-grid">
+        <div class="hp-card history-card" style="grid-column: 1 / -1; text-align:center; padding: 22px;">
+          <p style="color:#9ca3af; font-size:13px;">Belum ada riwayat perangkat yang terputus di dalam cache.</p>
+        </div>
+      </div>
+
+      <!-- 3 Grafik Komparasi Multi-HP -->
+      <div class="charts-grid">
+        <div class="chart-card">
+          <h4><i class="fa-solid fa-gauge-high" style="color:#38bdf8"></i> 1. Perbandingan Kecepatan (km/jam)</h4>
+          <div class="chart-box"><canvas id="speedChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h4><i class="fa-solid fa-wave-square" style="color:#fbbf24"></i> 2. Perbandingan Getaran / RMS (m/s²)</h4>
+          <div class="chart-box"><canvas id="rmsChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h4><i class="fa-solid fa-ruler-horizontal" style="color:#ef4444"></i> 3. Jarak dari Titik Safezone (Meter)</h4>
+          <div class="chart-box"><canvas id="distChart"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Tabel Log Pelanggaran -->
+      <div class="tabel-box">
+        <div class="tabel-head">
+          <h3><i class="fa-solid fa-triangle-exclamation" style="color:#ef4444"></i> Log Peringatan HP Keluar Safezone (&gt; Batas Meter)</h3>
+          <span class="status-pill merah" id="logCountBadge">0 Kejadian</span>
+        </div>
+        <div class="scroll-x">
+          <table>
+            <thead>
+              <tr>
+                <th>Jam</th>
+                <th>Identitas HP</th>
+                <th>Status</th>
+                <th>Jarak Safezone</th>
+                <th>Durasi Keluar</th>
+                <th>Kecepatan</th>
+                <th>Getaran</th>
+                <th>Baterai</th>
+                <th>Koordinat Google Maps</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="alertLogBody">
+              <tr><td colspan="10" style="text-align:center; color:#9ca3af; padding:20px;">Belum ada pelanggaran Safezone.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================================= -->
+  <!-- TAB 2: MODE HP EDGE SENSOR (TERKUNCI ANTI-THEFT)                          -->
+  <!-- ========================================================================= -->
+  <section id="view-edge" class="tab-view dash-orange hidden">
+    <div class="dash-head-orange">
+      <div class="container dash-head-inner">
+        <div>
+          <div style="font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.08em;">
+            <i class="fa-solid fa-lock"></i> Mode Anti-Theft Edge Device (Terkunci ke Monitor)
+          </div>
+          <h2 style="font-size:26px; font-weight:800; margin-top:2px;">Node Sensor HP (Pengawasan Aktif)</h2>
+          <p style="font-size:12.5px; opacity:0.92;">Alamat MQTT Broker, Project ID, dan Nama HP telah dikunci. Perubahan nama, pemutusan koneksi, atau pindah peran hanya dapat dilakukan dengan Sandi/Izin Monitor.</p>
+        </div>
+        <span id="edgeStatusBadge" class="status-pill kuning" style="background:#fff; color:#ea580c;">TERKUNCI &amp; AKTIF</span>
+      </div>
+    </div>
+
+    <div class="container">
+      <div class="edge-box">
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:16px; align-items:end; margin-bottom:18px;">
+          <div>
+            <label style="display:block; font-size:12px; font-weight:800; margin-bottom:5px; color:#7c2d12;">
+              Identitas HP Terkunci <i class="fa-solid fa-lock"></i> (Hanya Monitor yang dapat mengubah)
+            </label>
+            <div style="display:flex; gap:8px;">
+              <input type="text" id="customPhoneName" readonly class="locked-input"
+                     style="flex:1; padding:9px 12px; border-radius:10px; border:1px solid #fdba74; outline:none; font-weight:800;">
+            </div>
+          </div>
+
+          <div style="display:flex; flex-wrap:wrap; gap:8px;">
+            <button id="btnStartEdge" class="btn btn-hijau" onclick="requestReconnectEdgeWithAuth()">
+              <i class="fa-solid fa-rotate"></i> Hubungkan Ulang <i class="fa-solid fa-lock" style="font-size:10px"></i>
+            </button>
+            <button id="btnStopEdge" class="btn btn-merah" onclick="requestStopEdgeWithAuth()" disabled>
+              <i class="fa-solid fa-stop"></i> Putuskan Koneksi <i class="fa-solid fa-lock" style="font-size:10px"></i>
+            </button>
+            <button id="btnSetSafezoneEdge" class="btn btn-utama" onclick="setSafezoneFromPhone()" disabled>
+              <i class="fa-solid fa-lock"></i> Set Safezone (Menunggu Izin Monitor)
+            </button>
+            <button id="btnEdgeSwitchRole" class="btn btn-hitam" onclick="requestSwitchRoleWithAuth()" disabled>
+              <i class="fa-solid fa-lock"></i> Ganti Peran (Menunggu Izin Monitor)
+            </button>
+          </div>
+        </div>
+
+        <div id="edgeSafezoneAlert" style="padding:12px 14px; border-radius:10px; background:#fffbeb; border:1px solid #fde68a; color:#78350f; font-size:12.5px; margin-bottom:20px;">
+          <i class="fa-solid fa-shield-halved"></i> <strong>Proteksi Anti-Pencurian Aktif:</strong> Perangkat ini terikat ke Monitor pada Project ID <strong id="edgeBoundProjectLbl">-</strong>. Pengaturan jaringan tidak dapat diubah dari perangkat ini.
+        </div>
+
+        <!-- Speedometer & Metrik Lokal di Layar HP -->
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:16px; align-items:center;">
+          <div style="background:#111827; color:#fff; padding:16px; border-radius:14px; text-align:center;">
+            <div style="font-size:11px; color:#9ca3af; font-weight:700; margin-bottom:4px;">SPEEDOMETER HP INI</div>
+            <div id="edgeLocalSpeedo"></div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+            <div style="padding:14px; border-radius:12px; background:#fff7ed; border:1px solid #fed7aa;">
+              <span style="font-size:11px; color:#9a3412; font-weight:700;">Identitas Terdaftar</span>
+              <div id="eDisplayName" style="font-size:18px; font-weight:800; color:#ea580c; margin-top:2px;">-</div>
+            </div>
+            <div style="padding:14px; border-radius:12px; background:#fff7ed; border:1px solid #fed7aa;">
+              <span style="font-size:11px; color:#9a3412; font-weight:700;">Getaran (RMS)</span>
+              <div style="font-size:18px; font-weight:800; color:#d97706; margin-top:2px;"><span id="eRms">0.00</span> <small>m/s²</small></div>
+            </div>
+            <div style="padding:14px; border-radius:12px; background:#fff7ed; border:1px solid #fed7aa;">
+              <span style="font-size:11px; color:#9a3412; font-weight:700;">Jarak dari Safezone</span>
+              <div style="font-size:18px; font-weight:800; color:#111827; margin-top:2px;"><span id="eDist">0.0</span> <small>m</small></div>
+            </div>
+            <div style="padding:14px; border-radius:12px; background:#fff7ed; border:1px solid #fed7aa;">
+              <span style="font-size:11px; color:#9a3412; font-weight:700;">Daya Baterai HP</span>
+              <div id="eBattery" style="font-size:18px; font-weight:800; color:#16a34a; margin-top:2px;">--%</div>
+            </div>
+            <div style="grid-column: 1 / -1; padding:12px 14px; border-radius:12px; background:#f3f4f6; border:1px solid #e5e7eb;">
+              <span style="font-size:11px; color:#4b5563; font-weight:700;">Status Transmisi GPS Sensor:</span>
+              <div id="eCoords" class="mono" style="font-size:13px; font-weight:700; color:#111827; margin-top:2px;">Menunggu kunci satelit GPS...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================================= -->
+  <!-- TAB 3: ARSITEKTUR SISTEM (TEMA BIRU SEWAIN AJA)                           -->
+  <!-- ========================================================================= -->
+  <section id="view-docs" class="tab-view dash-blue hidden">
+    <div class="dash-head-blue">
+      <div class="container">
+        <div style="font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.08em;">
+          <i class="fa-solid fa-diagram-project"></i> Dokumentasi Teknis &amp; Spesifikasi Keamanan Anti-Theft
+        </div>
+        <h2 style="font-size:26px; font-weight:800; margin-top:2px;">Arsitektur STS (Speed and Tracking System)</h2>
+        <p style="font-size:12.5px; opacity:0.92;">Pemisahan Peran Ketat (Role Lock), Verifikasi Monitor Aktif (Beacon Handshake), dan Otorisasi Sandi Master.</p>
+      </div>
+    </div>
+
+    <div class="container">
+      <div class="bmc-grid">
+        <div class="bmc-kotak" style="border-color:#dc2626">
+          <h4 style="color:#dc2626"><i class="fa-solid fa-user-lock"></i> 1. Strict Role Separation</h4>
+          <p>Perangkat yang masuk sebagai Monitor tidak bisa menjadi Edge, dan perangkat Edge tidak bisa membuka tampilan Monitor ataupun mengubah alamat Broker/Project ID tanpa izin &amp; sandi Monitor.</p>
+        </div>
+        <div class="bmc-kotak" style="border-color:#7c3aed">
+          <h4 style="color:#7c3aed"><i class="fa-solid fa-tower-broadcast"></i> 2. Verifikasi Monitor Aktif</h4>
+          <p>HP (Edge Device) wajib memverifikasi sinyal <code>monitor_status</code> (Retained Beacon) di broker MQTT. Jika Project ID belum memiliki Monitor aktif, HP ditolak masuk ke mode Edge.</p>
+        </div>
+        <div class="bmc-kotak" style="border-color:#10b981">
+          <h4 style="color:#059669"><i class="fa-solid fa-key"></i> 3. Otorisasi Sandi Selektif</h4>
+          <p>Sandi Master wajib dimasukkan saat memutus/blokir koneksi, mengubah Broker/Project ID, batas kecepatan, ukuran Safezone, atau mengganti nama HP. Fitur tampilan (Floating, Notifikasi, Bersihkan Log) bebas diakses.</p>
+        </div>
+        <div class="bmc-kotak" style="border-color:#f59e0b">
+          <h4 style="color:#d97706"><i class="fa-solid fa-window-restore"></i> 4. Floating PiP &amp; History</h4>
+          <p>Mendukung jendela mini melayang di luar browser (Always-on-Top) serta pemindahan otomatis HP yang offline &gt;10 detik ke History Cache.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Container Toast -->
+  <div id="toast-container"></div>
+
+  <!-- Memanggil JS secara berurutan sesuai dependensi -->
+  <script src="app.js"></script>
+</body>
+</html>
